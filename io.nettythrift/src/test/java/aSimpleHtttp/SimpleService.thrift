@@ -1,0 +1,4 @@
+service SimpleService{
+ string ping();
+
+}

@@ -1,0 +1,41 @@
+Server started and listen on /0:0:0:0:0:0:0:0:9090
+ThriftMessageDecoder::firstByte = 0
+headByte = 0, fac = null
+headByte = 91, fac = org.apache.thrift.protocol.TJSONProtocol$Factory@7c6fcd57
+ThriftServerHandler: channelRead0( message = ThriftMessage [transportType=FRAMED, processStartTimeMillis=0])
+TNiftyTransport::read: offset=0, length=1, bytes=[91]
+TNiftyTransport::read: offset=0, length=1, bytes=[49]
+TNiftyTransport::read: offset=0, length=1, bytes=[44]
+TNiftyTransport::read: offset=0, length=1, bytes=[34]
+TNiftyTransport::read: offset=0, length=1, bytes=[112]
+TNiftyTransport::read: offset=0, length=1, bytes=[105]
+TNiftyTransport::read: offset=0, length=1, bytes=[110]
+TNiftyTransport::read: offset=0, length=1, bytes=[103]
+TNiftyTransport::read: offset=0, length=1, bytes=[34]
+TNiftyTransport::read: offset=0, length=1, bytes=[44]
+TNiftyTransport::read: offset=0, length=1, bytes=[49]
+TNiftyTransport::read: offset=0, length=1, bytes=[44]
+TNiftyTransport::read: offset=0, length=1, bytes=[48]
+TNiftyTransport::read: offset=0, length=1, bytes=[44]
+TNiftyTransport::read: offset=0, length=1, bytes=[123]
+TNiftyTransport::read: offset=0, length=1, bytes=[125]
+TNiftyTransport::read: offset=0, length=1, bytes=[93]
+pong
+TNiftyTransport::write: offset=0, length=1, bytes=[91]
+TNiftyTransport::write: offset=0, length=1, bytes=[49]
+TNiftyTransport::write: offset=0, length=1, bytes=[44]
+TNiftyTransport::write: offset=0, length=1, bytes=[34]
+TNiftyTransport::write: offset=0, length=1, bytes=[112, 105, 110, 103]
+TNiftyTransport::write: offset=1, length=1, bytes=[112, 105, 110, 103]
+TNiftyTransport::write: offset=2, length=1, bytes=[112, 105, 110, 103]
+TNiftyTransport::write: offset=3, length=1, bytes=[112, 105, 110, 103]
+TNiftyTransport::write: offset=0, length=1, bytes=[34]
+TNiftyTransport::write: offset=0, length=1, bytes=[44]
+TNiftyTransport::write: offset=0, length=1, bytes=[50]
+TNiftyTransport::write: offset=0, length=1, bytes=[44]
+TNiftyTransport::write: offset=0, length=1, bytes=[48]
+TNiftyTransport::write: offset=0, length=1, bytes=[44]
+TNiftyTransport::write: offset=0, length=1, bytes=[123]
+TNiftyTransport::write: offset=0, length=1, bytes=[125]
+TNiftyTransport::write: offset=0, length=1, bytes=[93]
+encode: message = ThriftMessage [transportType=FRAMED, processStartTimeMillis=0], buf.isReadable? true, frameSize=17
