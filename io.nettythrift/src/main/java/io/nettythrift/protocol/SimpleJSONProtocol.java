@@ -93,9 +93,9 @@ public class SimpleJSONProtocol extends TProtocol {
 	private static final TStruct ANONYMOUS_STRUCT = new TStruct();
 	private static final TField ANONYMOUS_FIELD = new TField();
 	// private static final TMessage EMPTY_MESSAGE = new TMessage();
-	private static final TSet EMPTY_SET = new TSet();
-	private static final TList EMPTY_LIST = new TList();
-	private static final TMap EMPTY_MAP = new TMap();
+//	private static final TSet EMPTY_SET = new TSet();
+//	private static final TList EMPTY_LIST = new TList();
+//	private static final TMap EMPTY_MAP = new TMap();
 	private static final String LIST = "list";
 	private static final String SET = "set";
 	private static final String MAP = "map";
@@ -463,6 +463,7 @@ public class SimpleJSONProtocol extends TProtocol {
 		}
 		java.lang.reflect.Field f = FieldMetaData.class.getDeclaredField("structMap");
 		f.setAccessible(true);
+		@SuppressWarnings("unchecked")
 		Map<Class<? extends TBase>, Map<? extends TFieldIdEnum, FieldMetaData>> structMap = (Map) f.get(null);
 		String suffix = name + "_args";
 		for (Class c : structMap.keySet()) {

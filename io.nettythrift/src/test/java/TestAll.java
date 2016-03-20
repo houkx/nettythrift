@@ -25,7 +25,7 @@ import aLab_commonDefines.CalculatorService.AsyncClient.ping_call;
 import aSimpleHtttp.SimpleService;
 
 /**
- * 
+ * http://central.sonatype.org/pages/apache-maven.html
  */
 
 /**
