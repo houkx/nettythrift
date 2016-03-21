@@ -145,6 +145,9 @@
 						<goals>
 							<goal>jar</goal>
 						</goals>
+						<configuration>
+							<additionalparam>-Xdoclint:none</additionalparam>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
@@ -185,4 +188,18 @@ Features:
 		<connection>scm:git:https://github.com/houkx/nettythrift.git</connection>
 		<tag>0.0.1</tag>
 	</scm>
+	<developers>
+		<developer>
+			<id>houkx</id>
+			<name>HouKangxi</name>
+			<email>1084940623@qq.com</email>
+			<organization>NQ</organization>
+			<organizationUrl>http://www.nq.com</organizationUrl>
+			<roles>
+				<role>Project-Administrator</role>
+				<role>Developer</role>
+			</roles>
+			<timezone>+8</timezone>
+		</developer>
+	</developers>
 </project>

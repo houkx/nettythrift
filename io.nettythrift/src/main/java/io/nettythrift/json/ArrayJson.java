@@ -9,7 +9,7 @@ import java.math.BigInteger;
 /**
  * Super interface for JSONObject And JSONArray to implement.
  * <p>
- * JSONObject is used as array: <k1,v2>,<k2,v2> --->[k1,v1,k2,v2]
+ * JSONObject is used as array: &lt;k1,v2&gt;,&lt;k2,v2&gt; ---&gt;[k1,v1,k2,v2]
  * 
  * @author houkx
  *
