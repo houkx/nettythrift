@@ -27,10 +27,36 @@ public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessa
 	}
 
 	@Override
-	protected void channelRead0(ChannelHandlerContext ctx, ThriftMessage message) throws Exception {
+	protected void channelRead0(final ChannelHandlerContext ctx, final ThriftMessage message) throws Exception {
 		// System.out.printf("ThriftServerHandler: channelRead0( message = %s),
 		// readable? %s, frameSize = %d\n" , message
 		// ,message.getBuffer().isReadable(),message.getBuffer().readableBytes());
+		if (message.readResult != null) {
+			System.out.println("拒绝二次读msg.");
+			final TNiftyTransport messageTransport = new TNiftyTransport(ctx.channel(), null, TNiftyTransport.MOD_W);
+			TProtocolFactory proctocolFactory = message.getProctocolFactory();
+			TProtocol outProtocol = proctocolFactory.getProtocol(messageTransport);
+			serverDef.getProcessor().write(new NioWriterFlusher() {
+				@Override
+				public io.netty.util.concurrent.EventExecutor handlerContextExecutor() {
+					return ctx.executor();
+				}
+
+				@Override
+				public void doFlush(int code, String respMessage) {
+					ThriftMessage response = message.clone(messageTransport.getOutputBuffer());
+					response.responseCode = code;
+					response.responseMessage = respMessage;
+					ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+				}
+
+				@Override
+				public ThriftTransportType transportType() {
+					return message.getTransportType();
+				}
+			}, outProtocol, serverDef, message.getProxyInfo(), message.readResult);
+			return;
+		}
 		TNiftyTransport msgTrans = new TNiftyTransport(ctx.channel(), message.getBuffer(), TNiftyTransport.MOD_RW);
 		TProtocolFactory proctocolFactory = message.getProctocolFactory();
 		TProtocol inProtocol = proctocolFactory.getProtocol(msgTrans);

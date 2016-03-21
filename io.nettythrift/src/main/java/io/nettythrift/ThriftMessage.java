@@ -18,6 +18,7 @@ package io.nettythrift;
 import org.apache.thrift.protocol.TProtocolFactory;
 
 import io.netty.buffer.ByteBuf;
+import io.nettythrift.NioProcessor.ReadResult;
 import io.nettythrift.transport.ThriftTransportType;
 
 public class ThriftMessage {
@@ -28,7 +29,10 @@ public class ThriftMessage {
    public int responseCode;
    public String responseMessage;
    public String proxyInfo;
-	public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType) {
+   public boolean hasRead;
+   public ReadResult readResult;
+
+   public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType) {
 		this.buffer = buffer;
 		this.transportType = transportType;
 	}

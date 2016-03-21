@@ -4,6 +4,7 @@
 package io.nettythrift;
 
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.TooLongFrameException;
@@ -49,10 +51,11 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			out.add(msg);
 		}
 	}
+
 	private String proxyInfo;
 	private boolean firstInvokeProxyHandler = true;
-	
-	private Object decode(ChannelHandlerContext ctx, ByteBuf buffer) throws Exception {
+
+	private Object decode(final ChannelHandlerContext ctx, ByteBuf buffer) throws Exception {
 		// return super.decode(ctx, in);
 		if (!buffer.isReadable()) {
 			return null;
@@ -60,7 +63,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		if (firstInvokeProxyHandler && proxyHandler != null) {
 			firstInvokeProxyHandler = false;
 			proxyInfo = proxyHandler.getHeadProxyInfo(buffer);
-			if (!buffer.isReadable()){
+			if (!buffer.isReadable()) {
 				return null;
 			}
 		}
@@ -82,17 +85,20 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		if ((fac = serverDef.getProcessor().getProtocolFactory(buffer)) != null) {
 
 			logger.debug("TTProtocolFactory = {} when UnframedMessage ", fac);
-			ByteBuf messageBuffer = tryDecodeUnframedMessage(ctx, buffer, fac);
+//			 ByteBuf messageBuffer = tryDecodeUnframedMessage(ctx, buffer,
+//			 fac);
+//			
+//			 if (messageBuffer == null) {
+//			 return null;
+//			 }
+//			 // A non-zero MSB for the first byte of the message implies the
+//			 // message starts with a
+//			 // protocol id (and thus it is unframed).
+//			 return new ThriftMessage(messageBuffer,
+//			 ThriftTransportType.UNFRAMED).setProctocolFactory(fac)
+//			 .setProxyInfo(proxyInfo);
 
-			if (messageBuffer == null) {
-				return null;
-			}
-			// A non-zero MSB for the first byte of the message implies the
-			// message starts with a
-			// protocol id (and thus it is unframed).
-			return new ThriftMessage(messageBuffer, ThriftTransportType.UNFRAMED).setProctocolFactory(fac)
-					.setProxyInfo(proxyInfo);
-
+			return directReadUnframedMessage(ctx, buffer, fac);
 		} else if (buffer.readableBytes() < MESSAGE_FRAME_SIZE) {
 			// Expecting a framed message, but not enough bytes available to
 			// read the frame size
@@ -111,11 +117,45 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		}
 	}
 
+	private Object directReadUnframedMessage(final ChannelHandlerContext ctx, ByteBuf buffer, TProtocolFactory fac)
+			throws TException {
+		final TNiftyTransport msgTrans = new TNiftyTransport(ctx.channel(), buffer, TNiftyTransport.MOD_RW);
+		TProtocol in = fac.getProtocol(msgTrans);
+		TProtocol out = in;
+		final ThriftMessage msg = new ThriftMessage(null, ThriftTransportType.UNFRAMED).setProctocolFactory(fac)
+				.setProxyInfo(proxyInfo);
+		msg.readResult = serverDef.getProcessor().read(new NioWriterFlusher() {
+			@Override
+			public ThriftTransportType transportType() {
+				return ThriftTransportType.UNFRAMED;
+			}
+
+			@Override
+			public ScheduledExecutorService handlerContextExecutor() {
+				return ctx.executor();
+			}
+
+			@Override
+			public void doFlush(int code, String message) {
+				ThriftMessage response = msg.clone(msgTrans.getOutputBuffer());
+				response.responseCode = msg.responseCode = code;
+				response.responseMessage = msg.responseMessage = message;
+				ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+			}
+		}, in, out, serverDef, proxyInfo);
+
+		if (msg.responseCode != 0) {
+			return null;
+		}
+		return msg;
+	}
+
 	private void notifyHttpDecoder(ChannelHandlerContext ch, ByteBuf buffer, String proxyInfo) {
 		ch.pipeline().addAfter("msgDecoder", "httpReqDecoder", new HttpRequestDecoder());
 		ch.pipeline().addAfter("httpReqDecoder", "httpRespEncoder", new HttpResponseEncoder());
 		ch.pipeline().addAfter("httpRespEncoder", "httpAggegator", new HttpObjectAggregator(512 * 1024, true));
-		ch.pipeline().addAfter("httpAggegator", "httpReq2ThriftMsgDecoder", new HttpReq2MsgDecoder(serverDef,proxyInfo));
+		ch.pipeline().addAfter("httpAggegator", "httpReq2ThriftMsgDecoder",
+				new HttpReq2MsgDecoder(serverDef, proxyInfo));
 		ch.fireChannelRead(buffer);// 往下个ChannelInBoundHandler 传递
 	}
 
@@ -137,7 +177,8 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		// The full message is larger by the size of the frame size prefix
 		int messageLength = buffer.getInt(messageStartReaderIndex) + MESSAGE_FRAME_SIZE;
 		int messageContentsLength = messageStartReaderIndex + messageLength - messageContentsOffset;
-		System.out.printf("messageLength = %d, messageContentsLength=%d, offset=%d\n",messageLength,messageContentsLength,messageContentsOffset);
+		System.out.printf("messageLength = %d, messageContentsLength=%d, offset=%d\n", messageLength,
+				messageContentsLength, messageContentsOffset);
 		if (messageContentsLength > maxFrameSize) {
 			throw new TooLongFrameException("Maximum frame size of " + maxFrameSize + " exceeded");
 		}
@@ -168,7 +209,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		try {
 			TNiftyTransport decodeAttemptTransport = new TNiftyTransport(channel, buffer, TNiftyTransport.MOD_R);
 			int initialReadBytes = decodeAttemptTransport.getReadByteCount();
-			
+
 			TProtocol inputProtocol = inputTProtocolFactory.getProtocol(decodeAttemptTransport);
 
 			// Skip through the message

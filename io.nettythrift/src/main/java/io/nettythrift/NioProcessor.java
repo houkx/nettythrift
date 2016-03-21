@@ -96,9 +96,21 @@ public class NioProcessor<I> {
 		return null;
 	}
 
-	public int process(final NioWriterFlusher ctx, TProtocol in, final TProtocol out, ServerConfig serverDef,
+	public static class ReadResult {
+		final TMessage msg;
+		final TBase args;
+		final ProcessFunction fn;
+
+		private ReadResult(TMessage msg, TBase args, ProcessFunction fn) {
+			this.msg = msg;
+			this.args = args;
+			this.fn = fn;
+		}
+
+	}
+
+	 ReadResult read(final NioWriterFlusher ctx, TProtocol in, final TProtocol out, ServerConfig serverDef,
 			String proxyInfo) throws TException {
-		// 由IO 线程发起和执行读取，即解码操作。
 		final TMessage msg = in.readMessageBegin();
 		final ProcessFunction fn = processMap.get(msg.name);
 		if (fn == null) {
@@ -108,7 +120,7 @@ public class NioProcessor<I> {
 			int code = ctx.transportType() == ThriftTransportType.HTTP ? CODE_RES_NOTFOUND : x.getType();
 			writeOut(ctx, out, new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid), new TAppExceptionTBase(x),
 					code, x.getMessage());
-			return -1;
+			return null;
 		}
 		final TBase args = fn.getEmptyArgsInstance();
 		try {
@@ -119,7 +131,7 @@ public class NioProcessor<I> {
 			int code = ctx.transportType() == ThriftTransportType.HTTP ? CODE_NOT_ACCEPT : x.getType();
 			writeOut(ctx, out, new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid), new TAppExceptionTBase(x),
 					code, x.getMessage());
-			return -2;
+			return null;
 		}
 		in.readMessageEnd();
 		// process proxyInfo
@@ -129,27 +141,15 @@ public class NioProcessor<I> {
 		} else {
 			LOGGER.warn("proxyInfo={}, ProxyHandler={}", proxyInfo, serverDef.getProxyHandler());
 		}
+		return new ReadResult(msg, args, fn);
+	}
+
+	 void write(final NioWriterFlusher ctx, final TProtocol out, ServerConfig serverDef,
+			String proxyInfo, final ReadResult readResult) throws TException {
+		final TMessage msg = readResult.msg;
 		// process taskTimeOut
 		final java.util.concurrent.ScheduledFuture timeOutResponseFuture;
-		if (serverDef.getTaskTimeoutMillis() > 0) {
-			timeOutResponseFuture = ctx.handlerContextExecutor().schedule(new Runnable() {
-				@Override
-				public void run() {
-					LOGGER.warn("任务已超时");
-					TApplicationException x = taskTimeOutException(msg);
-					int code = ctx.transportType() == ThriftTransportType.HTTP ? CODE_REQ_TIMEOUT : x.getType();
-					try {
-						TMessage resultMsg = new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid);
-						writeOut(ctx, out, resultMsg, new TAppExceptionTBase(x), code, x.getMessage());
-					} catch (TException e) {
-						e.printStackTrace();
-					}
-				}
-			}, serverDef.getTaskTimeoutMillis(), TimeUnit.MILLISECONDS);
-		} else {
-			LOGGER.warn("未设置任务超时时间");
-			timeOutResponseFuture = null;
-		}
+		timeOutResponseFuture = procTaskTimeOut(ctx, out, serverDef, msg);
 		// 在用户线程执行业务逻辑
 		executor.submit(new Runnable() {
 			@SuppressWarnings("unchecked")
@@ -160,7 +160,7 @@ public class NioProcessor<I> {
 				int respCode;
 				String respMsg;
 				try {
-					result = fn.getResult(iface, args);
+					result = readResult.fn.getResult(iface, readResult.args);
 					msgType = TMessageType.REPLY;
 					respCode = CODE_SUCCESS;
 					respMsg = "OK";
@@ -195,7 +195,38 @@ public class NioProcessor<I> {
 				}
 			}
 		});
-		return 0;
+	}
+
+	private java.util.concurrent.ScheduledFuture procTaskTimeOut(final NioWriterFlusher ctx, final TProtocol out,
+			ServerConfig serverDef, final TMessage msg) {
+		final java.util.concurrent.ScheduledFuture timeOutResponseFuture;
+		if (serverDef.getTaskTimeoutMillis() > 0) {
+			timeOutResponseFuture = ctx.handlerContextExecutor().schedule(new Runnable() {
+				@Override
+				public void run() {
+					LOGGER.warn("任务已超时");
+					TApplicationException x = taskTimeOutException(msg);
+					int code = ctx.transportType() == ThriftTransportType.HTTP ? CODE_REQ_TIMEOUT : x.getType();
+					try {
+						TMessage resultMsg = new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid);
+						writeOut(ctx, out, resultMsg, new TAppExceptionTBase(x), code, x.getMessage());
+					} catch (TException e) {
+						e.printStackTrace();
+					}
+				}
+			}, serverDef.getTaskTimeoutMillis(), TimeUnit.MILLISECONDS);
+		} else {
+			LOGGER.warn("未设置任务超时时间");
+			timeOutResponseFuture = null;
+		}
+		return timeOutResponseFuture;
+	}
+
+	public void process(final NioWriterFlusher ctx, TProtocol in, final TProtocol out, ServerConfig serverDef,
+			String proxyInfo) throws TException {
+		// 由IO 线程发起和执行读取，即解码操作。
+		ReadResult readResult = read(ctx, in, out, serverDef, proxyInfo);
+		write(ctx, out, serverDef, proxyInfo, readResult);
 	}
 
 	protected TApplicationException invalidMethodException(TMessage msg) {
