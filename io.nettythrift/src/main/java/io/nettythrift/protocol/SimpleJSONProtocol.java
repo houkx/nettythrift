@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Stack;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.thrift.TBase;
 import org.apache.thrift.TException;
@@ -68,17 +69,23 @@ public class SimpleJSONProtocol extends TProtocol {
 	@SuppressWarnings("serial")
 	public static class Factory implements TProtocolFactory {
 		private final Class<?> ifaceClass;
-
+		private final boolean isServer;
+		
 		public Factory() {
-			ifaceClass = null;
+			this(null, true);
 		}
 
 		public Factory(Class<?> ifaceClass) {
+			this(ifaceClass, true);
+		}
+
+		public Factory(Class<?> ifaceClass, boolean isServer) {
 			this.ifaceClass = ifaceClass;
+			this.isServer = isServer;
 		}
 
 		public TProtocol getProtocol(TTransport trans) {
-			return new SimpleJSONProtocol(trans, ifaceClass);
+			return new SimpleJSONProtocol(trans, ifaceClass, isServer);
 		}
 	}
 
@@ -195,19 +202,19 @@ public class SimpleJSONProtocol extends TProtocol {
 	private Class argsTBaseClass;
 
 	private final Class<?> ifaceClass;
-
+    private final boolean isServer;
 	/**
 	 * Constructor
 	 */
 	public SimpleJSONProtocol(TTransport trans) {
-		this(trans, null);
+		this(trans, null, true);
 	}
-
 	/**
 	 * Constructor
 	 */
-	public SimpleJSONProtocol(TTransport trans, Class<?> ifaceClass) {
+	public SimpleJSONProtocol(TTransport trans, Class<?> ifaceClass, boolean isServer) {
 		super(trans);
+		this.isServer = isServer;
 		this.ifaceClass = ifaceClass;
 	}
 
@@ -452,12 +459,21 @@ public class SimpleJSONProtocol extends TProtocol {
 		}
 		return msg;
 	}
-
+	
+	private static ConcurrentHashMap<String,Class<?>> tBaseclassCache = new ConcurrentHashMap<String, Class<?>>();
+	
 	private Class guessTBaseClassByMethodName(String name) throws Exception {
+		String classSimpleName = String.format("%s_%s", name, isServer ? "args" : "result");
+		Class<?> result = tBaseclassCache.get(classSimpleName);
+		if (result != null) {
+			return result;
+		}
+		String className = String.format("%s$%s", ifaceClass.getEnclosingClass().getName(), classSimpleName);
 		if (ifaceClass != null) {
-			String className = String.format("%s$%s_args", ifaceClass.getEnclosingClass().getName(), name);
 			try {
-				return Class.forName(className);
+				result = Class.forName(className);
+				tBaseclassCache.putIfAbsent(classSimpleName, result);
+				return result;
 			} catch (Exception e) {
 			}
 		}
@@ -465,9 +481,9 @@ public class SimpleJSONProtocol extends TProtocol {
 		f.setAccessible(true);
 		@SuppressWarnings("unchecked")
 		Map<Class<? extends TBase>, Map<? extends TFieldIdEnum, FieldMetaData>> structMap = (Map) f.get(null);
-		String suffix = name + "_args";
 		for (Class c : structMap.keySet()) {
-			if (c.getSimpleName().endsWith(suffix)) {
+			if (c.getName().equals(className)) {
+				tBaseclassCache.putIfAbsent(classSimpleName, c);
 				return c;
 			}
 		}
