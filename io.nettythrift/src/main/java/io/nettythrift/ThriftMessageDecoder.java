@@ -9,14 +9,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.apache.thrift.protocol.TProtocolUtil;
-import org.apache.thrift.protocol.TType;
-import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -83,21 +79,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 
 		TProtocolFactory fac = null;
 		if ((fac = serverDef.getProcessor().getProtocolFactory(buffer)) != null) {
-
 			logger.debug("TTProtocolFactory = {} when UnframedMessage ", fac);
-//			 ByteBuf messageBuffer = tryDecodeUnframedMessage(ctx, buffer,
-//			 fac);
-//			
-//			 if (messageBuffer == null) {
-//			 return null;
-//			 }
-//			 // A non-zero MSB for the first byte of the message implies the
-//			 // message starts with a
-//			 // protocol id (and thus it is unframed).
-//			 return new ThriftMessage(messageBuffer,
-//			 ThriftTransportType.UNFRAMED).setProctocolFactory(fac)
-//			 .setProxyInfo(proxyInfo);
-
 			return directReadUnframedMessage(ctx, buffer, fac);
 		} else if (buffer.readableBytes() < MESSAGE_FRAME_SIZE) {
 			// Expecting a framed message, but not enough bytes available to
@@ -196,52 +178,6 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			buffer.readerIndex(messageStartReaderIndex + messageLength);
 			return messageBuffer;
 		}
-	}
-
-	private ByteBuf tryDecodeUnframedMessage(ChannelHandlerContext ctx, ByteBuf buffer,
-			TProtocolFactory inputTProtocolFactory) throws TException {
-		// Perform a trial decode, skipping through
-		// the fields, to see whether we have an entire message available.
-
-		int messageLength = 0;
-		int messageStartReaderIndex = buffer.readerIndex();
-		Channel channel = ctx.channel();
-		try {
-			TNiftyTransport decodeAttemptTransport = new TNiftyTransport(channel, buffer, TNiftyTransport.MOD_R);
-			int initialReadBytes = decodeAttemptTransport.getReadByteCount();
-
-			TProtocol inputProtocol = inputTProtocolFactory.getProtocol(decodeAttemptTransport);
-
-			// Skip through the message
-			inputProtocol.readMessageBegin();
-			TProtocolUtil.skip(inputProtocol, TType.STRUCT);
-			inputProtocol.readMessageEnd();
-
-			messageLength = decodeAttemptTransport.getReadByteCount() - initialReadBytes;
-		} catch (TTransportException e) {
-			// No complete message was decoded: ran out of bytes
-			logger.error("fail to tryDecodeUnframedMessage", e);
-			return null;
-		} catch (IndexOutOfBoundsException e) {
-			// No complete message was decoded: ran out of bytes
-			logger.error("fail to tryDecodeUnframedMessage", e);
-			return null;
-		} finally {
-			if (buffer.readerIndex() - messageStartReaderIndex > maxFrameSize) {
-				throw new TooLongFrameException("Maximum frame size of " + maxFrameSize + " exceeded");
-			}
-
-			buffer.readerIndex(messageStartReaderIndex);
-		}
-
-		if (messageLength <= 0) {
-			return null;
-		}
-
-		// We have a full message in the read buffer, slice it off
-		ByteBuf messageBuffer = extractFrame(ctx, buffer, messageStartReaderIndex, messageLength);
-		buffer.readerIndex(messageStartReaderIndex + messageLength);
-		return messageBuffer;
 	}
 
 	protected ByteBuf extractFrame(ChannelHandlerContext ctx, ByteBuf buffer, int index, int length) {
