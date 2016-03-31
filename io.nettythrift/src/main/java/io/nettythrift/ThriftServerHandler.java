@@ -32,7 +32,6 @@ public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessa
 		// readable? %s, frameSize = %d\n" , message
 		// ,message.getBuffer().isReadable(),message.getBuffer().readableBytes());
 		if (message.readResult != null) {
-			System.out.println("拒绝二次读msg.");
 			final TNiftyTransport messageTransport = new TNiftyTransport(ctx.channel(), null, TNiftyTransport.MOD_W);
 			TProtocolFactory proctocolFactory = message.getProctocolFactory();
 			TProtocol outProtocol = proctocolFactory.getProtocol(messageTransport);
