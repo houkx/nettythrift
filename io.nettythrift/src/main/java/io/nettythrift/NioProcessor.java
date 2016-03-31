@@ -114,8 +114,10 @@ public class NioProcessor<I> {
 		final TMessage msg = in.readMessageBegin();
 		final ProcessFunction fn = processMap.get(msg.name);
 		if (fn == null) {
-			TProtocolUtil.skip(in, TType.STRUCT);
-			in.readMessageEnd();
+			if (msg.type == TMessageType.CALL) {
+				TProtocolUtil.skip(in, TType.STRUCT);
+				in.readMessageEnd();
+			}
 			TApplicationException x = invalidMethodException(msg);
 			int code = ctx.transportType() == ThriftTransportType.HTTP ? CODE_RES_NOTFOUND : x.getType();
 			writeOut(ctx, out, new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid), new TAppExceptionTBase(x),
@@ -146,6 +148,9 @@ public class NioProcessor<I> {
 
 	 void write(final NioWriterFlusher ctx, final TProtocol out, ServerConfig serverDef,
 			String proxyInfo, final ReadResult readResult) throws TException {
+		if (readResult == null) {
+			return;
+		}
 		final TMessage msg = readResult.msg;
 		// process taskTimeOut
 		final java.util.concurrent.ScheduledFuture timeOutResponseFuture;

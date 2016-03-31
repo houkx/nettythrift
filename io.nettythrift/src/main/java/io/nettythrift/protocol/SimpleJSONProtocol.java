@@ -39,6 +39,7 @@ import org.apache.thrift.protocol.TField;
 import org.apache.thrift.protocol.TList;
 import org.apache.thrift.protocol.TMap;
 import org.apache.thrift.protocol.TMessage;
+import org.apache.thrift.protocol.TMessageType;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolException;
 import org.apache.thrift.protocol.TProtocolFactory;
@@ -452,6 +453,11 @@ public class SimpleJSONProtocol extends TProtocol {
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
+			}
+			if(argsTBaseClass == null){
+//				throw new TProtocolException(TApplicationException.UNKNOWN_METHOD,
+//						"Invalid method name: '" + msg.name + "'");
+				return new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid);
 			}
 			@SuppressWarnings("unchecked")
 			StructMetaData meta = new StructMetaData(TType.STRUCT, argsTBaseClass);
