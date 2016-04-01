@@ -34,7 +34,7 @@ class BaseArray {
 	private final int addStep;
 	private final int ARRAY_SIZE;
 	// ----- fields for Struct --------------
-	private Map<String,Map.Entry<TFieldIdEnum, FieldMetaData>> elementMetas;
+	private Map<String, Map.Entry<TFieldIdEnum, FieldMetaData>> elementMetas;
 	private int createIndex = 0;
 	// field for JsonArray
 	private Map.Entry<TFieldIdEnum, FieldMetaData>[] elementMetaArr;
@@ -50,7 +50,7 @@ class BaseArray {
 			StructMetaData sm = (StructMetaData) meta;
 			Map<TFieldIdEnum, FieldMetaData> map = (Map<TFieldIdEnum, FieldMetaData>) FieldMetaData
 					.getStructMetaDataMap(sm.structClass);
-			
+
 			if (obj instanceof JSONObject) {
 				this.fieldIndex = 1;
 				addStep = 2;
@@ -60,9 +60,9 @@ class BaseArray {
 						elementMetas.put(m.getKey().getFieldName(), m);
 					}
 				}
-			}else{
+			} else {
 				elementMetaArr = map.entrySet().toArray(new Map.Entry[0]);
-				Arrays.sort(elementMetaArr,new Comparator<Map.Entry<TFieldIdEnum, FieldMetaData>>() {
+				Arrays.sort(elementMetaArr, new Comparator<Map.Entry<TFieldIdEnum, FieldMetaData>>() {
 					@Override
 					public int compare(Entry<TFieldIdEnum, FieldMetaData> o1, Entry<TFieldIdEnum, FieldMetaData> o2) {
 						return o1.getKey().getThriftFieldId() - o2.getKey().getThriftFieldId();
@@ -165,15 +165,8 @@ class BaseArray {
 		return metaData;
 	}
 
-//	public TField newField() {
-//		if (createIndex < elementMetas.length) {
-//			Map.Entry<TFieldIdEnum, FieldMetaData> entry = elementMetas[createIndex++];
-//			FieldMetaData fm = entry.getValue();
-//			return new TField(fm.fieldName, fm.valueMetaData.type, entry.getKey().getThriftFieldId());
-//		}
-//		return null;
-//	}
-	FieldMetaData prevFieldMetaData;
+	private FieldMetaData prevFieldMetaData;
+
 	/**
 	 * Struct use only.
 	 * 
@@ -185,10 +178,14 @@ class BaseArray {
 			if (addStep == 2) {
 				String fieldName = obj.getString(createIndex << 1);
 				entry = elementMetas.get(fieldName);
+				createIndex++;
 			} else {
-				entry = elementMetaArr[createIndex];
+				int i = createIndex;
+				while (i < obj.length() && obj.get(i) == null)i++;
+
+				entry = elementMetaArr[i];
+				createIndex = i + 1;
 			}
-			createIndex++;
 			FieldMetaData fm = entry.getValue();
 			prevFieldMetaData = fm;
 			return new TField(fm.fieldName, fm.valueMetaData.type, entry.getKey().getThriftFieldId());
