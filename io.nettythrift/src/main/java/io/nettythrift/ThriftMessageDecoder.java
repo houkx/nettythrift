@@ -68,12 +68,12 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		// System.out.printf("decode():firstByte = %s,", firstByte);
 		if (firstByte == 80) {
 			logger.debug("httpRequest from program.");
-			notifyHttpDecoder(ctx, buffer, proxyInfo);
+			notifyHttpDecoder(ctx, buffer, proxyInfo, true);
 			return null;
 		}
 		if (firstByte == 71) {// 从浏览器访问时首字符是71
 			logger.debug("HttpRequest from brower.");
-			notifyHttpDecoder(ctx, buffer, proxyInfo);
+			notifyHttpDecoder(ctx, buffer, proxyInfo, false);
 			return null;
 		}
 
@@ -132,17 +132,16 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		return msg;
 	}
 
-	private void notifyHttpDecoder(ChannelHandlerContext ch, ByteBuf buffer, String proxyInfo) {
+	private void notifyHttpDecoder(ChannelHandlerContext ch, ByteBuf buffer, String proxyInfo,boolean fromProgram) {
 		ch.pipeline().addAfter("msgDecoder", "httpReqDecoder", new HttpRequestDecoder());
 		ch.pipeline().addAfter("httpReqDecoder", "httpRespEncoder", new HttpResponseEncoder());
 		ch.pipeline().addAfter("httpRespEncoder", "httpAggegator", new HttpObjectAggregator(512 * 1024, true));
 		ch.pipeline().addAfter("httpAggegator", "httpReq2ThriftMsgDecoder",
-				new HttpReq2MsgDecoder(serverDef, proxyInfo));
+				new HttpReq2MsgDecoder(serverDef, proxyInfo, fromProgram));
 		ch.fireChannelRead(buffer);// 往下个ChannelInBoundHandler 传递
 	}
 
 	private ByteBuf tryDecodeFramedMessage(ChannelHandlerContext ctx, ByteBuf buffer, boolean stripFraming) {
-		System.out.println("tryDecodeFramedMessage...");
 		// Framed messages are prefixed by the size of the frame (which doesn't
 		// include the
 		// framing itself).
@@ -159,8 +158,8 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		// The full message is larger by the size of the frame size prefix
 		int messageLength = buffer.getInt(messageStartReaderIndex) + MESSAGE_FRAME_SIZE;
 		int messageContentsLength = messageStartReaderIndex + messageLength - messageContentsOffset;
-		System.out.printf("messageLength = %d, messageContentsLength=%d, offset=%d\n", messageLength,
-				messageContentsLength, messageContentsOffset);
+//		System.out.printf("messageLength = %d, messageContentsLength=%d, offset=%d\n", messageLength,
+//				messageContentsLength, messageContentsOffset);
 		if (messageContentsLength > maxFrameSize) {
 			throw new TooLongFrameException("Maximum frame size of " + maxFrameSize + " exceeded");
 		}

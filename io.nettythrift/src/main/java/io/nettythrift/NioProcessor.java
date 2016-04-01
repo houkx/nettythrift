@@ -88,7 +88,6 @@ public class NioProcessor<I> {
 			headByte = 92;
 		}
 		TProtocolFactory fac = protocolFactoryMap.get(headByte);
-		System.out.printf("ProtocolFactoryHelper::headByte = %d, fac = %s\n", headByte, fac);
 		if (fac != null) {
 			return fac;
 		}
@@ -138,7 +137,7 @@ public class NioProcessor<I> {
 		in.readMessageEnd();
 		// process proxyInfo
 		if (proxyInfo != null && serverDef.getProxyHandler() != null) {
-			LOGGER.info("set proxyInfo:{}, proxyHandler={}", proxyInfo, serverDef.getProxyHandler());
+			LOGGER.debug("set proxyInfo:{}, proxyHandler={}", proxyInfo, serverDef.getProxyHandler());
 			serverDef.getProxyHandler().handlerProxyInfo(args, proxyInfo);
 		} else {
 			LOGGER.warn("proxyInfo={}, ProxyHandler={}", proxyInfo, serverDef.getProxyHandler());

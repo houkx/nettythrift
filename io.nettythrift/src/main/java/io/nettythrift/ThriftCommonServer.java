@@ -8,6 +8,8 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
 
 /**
+ * 通用Thrift服务
+ * 
  * @author HouKangxi
  *
  */

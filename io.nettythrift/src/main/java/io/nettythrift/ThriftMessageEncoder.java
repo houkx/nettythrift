@@ -56,7 +56,7 @@ public class ThriftMessageEncoder extends MessageToByteEncoder<ThriftMessage> {
 
 		case HTTP: {
 			HttpVersion version = new HttpVersion("HTTP/1.1", false);
-			HttpResponseStatus status = new HttpResponseStatus(message.responseCode, message.responseMessage);
+			HttpResponseStatus status = new HttpResponseStatus(message.fromProgram?200:message.responseCode, message.responseMessage);
 			ByteBuf content = buf;
 			DefaultFullHttpResponse httpResp = new DefaultFullHttpResponse(version,
 					status, content);

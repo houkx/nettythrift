@@ -26,13 +26,14 @@ public class ThriftMessage {
 	private final ThriftTransportType transportType;
 	private long processStartTimeMillis;
 	private TProtocolFactory proctocolFactory;// new added -- 用于动态协议
-   public int responseCode;
-   public String responseMessage;
-   public String proxyInfo;
-   public boolean hasRead;
-   public ReadResult readResult;
-
-   public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType) {
+	public int responseCode;
+	public String responseMessage;
+	public String proxyInfo;
+	public boolean hasRead;
+	public ReadResult readResult;
+	public boolean fromProgram;
+	
+	public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType) {
 		this.buffer = buffer;
 		this.transportType = transportType;
 	}
@@ -47,9 +48,13 @@ public class ThriftMessage {
 
 	public ThriftMessage clone(ByteBuf messageBuffer) {
 		return new ThriftMessage(messageBuffer, transportType).setProctocolFactory(proctocolFactory)
-				.setProcessStartTimeMillis(processStartTimeMillis);
+				.setProcessStartTimeMillis(processStartTimeMillis).fromProgram(fromProgram);
 	}
 
+	private ThriftMessage fromProgram(boolean fromProgram) {
+		this.fromProgram = fromProgram;
+		return this;
+	}
 	/**
 	 * Standard Thrift clients require ordered responses, so even though Nifty
 	 * can run multiple requests from the same client at the same time, the

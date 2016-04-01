@@ -18,10 +18,12 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 	private static Logger logger = LoggerFactory.getLogger(HttpReq2MsgDecoder.class);
 	private final String proxyInfo;
 	private final ServerConfig serverDef;
+    private final boolean fromProgram;
 
-	public HttpReq2MsgDecoder(ServerConfig serverDef, String proxyInfo) {
+	public HttpReq2MsgDecoder(ServerConfig serverDef, String proxyInfo, boolean fromProgram) {
 		this.proxyInfo = proxyInfo;
 		this.serverDef = serverDef;
+		this.fromProgram = fromProgram;
 	}
 
 	@Override
@@ -65,9 +67,14 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 
 			ThriftMessage thriftMessage = new ThriftMessage(content, ThriftTransportType.HTTP)
 					.setProctocolFactory(factory);
+			thriftMessage.fromProgram = fromProgram;
 			thriftMessage.proxyInfo = proxyInfo;
 			out.add(thriftMessage);
 		} else {
+			ThriftMessage thriftMessage = new ThriftMessage(Unpooled.EMPTY_BUFFER, ThriftTransportType.HTTP);
+			thriftMessage.responseCode=404;
+			thriftMessage.responseMessage="res not found!";
+			ctx.writeAndFlush(thriftMessage );
 			logger.error("factory =={}, content={}", factory, content);
 		}
 	}
