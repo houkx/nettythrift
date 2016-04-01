@@ -2,6 +2,7 @@ package io.nettythrift.protocol;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,8 +34,10 @@ class BaseArray {
 	private final int addStep;
 	private final int ARRAY_SIZE;
 	// ----- fields for Struct --------------
-	private Map.Entry<TFieldIdEnum, FieldMetaData>[] elementMetas;
+	private Map<String,Map.Entry<TFieldIdEnum, FieldMetaData>> elementMetas;
 	private int createIndex = 0;
+	// field for JsonArray
+	private Map.Entry<TFieldIdEnum, FieldMetaData>[] elementMetaArr;
 
 	// ---------------------------------------
 	@SuppressWarnings("unchecked")
@@ -47,31 +50,22 @@ class BaseArray {
 			StructMetaData sm = (StructMetaData) meta;
 			Map<TFieldIdEnum, FieldMetaData> map = (Map<TFieldIdEnum, FieldMetaData>) FieldMetaData
 					.getStructMetaDataMap(sm.structClass);
-			elementMetas = map.entrySet().toArray(new Map.Entry[0]);
-
+			
 			if (obj instanceof JSONObject) {
-
 				this.fieldIndex = 1;
 				addStep = 2;
-
-				JSONObject jobj = (JSONObject) obj;
-				final Map<String, Integer> ks = new HashMap<String, Integer>(elementMetas.length);
-				int i = 0;
-				for (Map.Entry<TFieldIdEnum, FieldMetaData> m : elementMetas) {
-					ks.put(m.getValue().fieldName, i++);
+				if (map != null && map.size() > 0) {
+					elementMetas = new HashMap<String, Map.Entry<TFieldIdEnum, FieldMetaData>>(map.size());
+					for (Map.Entry<TFieldIdEnum, FieldMetaData> m : map.entrySet()) {
+						elementMetas.put(m.getKey().getFieldName(), m);
+					}
 				}
-				jobj.sort(new Comparator<Map.Entry<String, Object>>() {
+			}else{
+				elementMetaArr = map.entrySet().toArray(new Map.Entry[0]);
+				Arrays.sort(elementMetaArr,new Comparator<Map.Entry<TFieldIdEnum, FieldMetaData>>() {
 					@Override
-					public int compare(Entry<String, Object> o1, Entry<String, Object> o2) {
-						Integer i1 = ks.get(o1.getKey());
-						Integer i2 = ks.get(o2.getKey());
-						if (i1 == null) {
-							i1 = Integer.MAX_VALUE;
-						}
-						if (i2 == null) {
-							i2 = Integer.MAX_VALUE;
-						}
-						return i1 - i2;
+					public int compare(Entry<TFieldIdEnum, FieldMetaData> o1, Entry<TFieldIdEnum, FieldMetaData> o2) {
+						return o1.getKey().getThriftFieldId() - o2.getKey().getThriftFieldId();
 					}
 				});
 			}
@@ -158,7 +152,7 @@ class BaseArray {
 		case TType.STRUCT: {
 			int cur = currentIndex();
 			ArrayJson o = (ArrayJson) obj.get(cur);
-			FieldMetaData fm = elementMetas[cur / addStep].getValue();
+			FieldMetaData fm = prevFieldMetaData;
 			return new BaseArray(fm.valueMetaData, o);
 		}
 		default:
@@ -171,15 +165,32 @@ class BaseArray {
 		return metaData;
 	}
 
+//	public TField newField() {
+//		if (createIndex < elementMetas.length) {
+//			Map.Entry<TFieldIdEnum, FieldMetaData> entry = elementMetas[createIndex++];
+//			FieldMetaData fm = entry.getValue();
+//			return new TField(fm.fieldName, fm.valueMetaData.type, entry.getKey().getThriftFieldId());
+//		}
+//		return null;
+//	}
+	FieldMetaData prevFieldMetaData;
 	/**
 	 * Struct use only.
 	 * 
 	 * @return
 	 */
 	public TField newField() {
-		if (createIndex < elementMetas.length) {
-			Map.Entry<TFieldIdEnum, FieldMetaData> entry = elementMetas[createIndex++];
+		if (createIndex < obj.length()) {
+			Map.Entry<TFieldIdEnum, FieldMetaData> entry = null;
+			if (addStep == 2) {
+				String fieldName = obj.getString(createIndex << 1);
+				entry = elementMetas.get(fieldName);
+			} else {
+				entry = elementMetaArr[createIndex];
+			}
+			createIndex++;
 			FieldMetaData fm = entry.getValue();
+			prevFieldMetaData = fm;
 			return new TField(fm.fieldName, fm.valueMetaData.type, entry.getKey().getThriftFieldId());
 		}
 		return null;

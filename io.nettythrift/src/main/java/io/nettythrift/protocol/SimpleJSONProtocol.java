@@ -58,8 +58,9 @@ import io.nettythrift.json.JSONArray;
  * parsing by scripting languages. It should not be confused with the
  * full-featured TJSONProtocol.
  * <p>
- * Change:<br/>
- *  WriteOnly Change to RW
+ *
+ * Changes: <br/>
+ * 只写改为可读写 - by HouKangxi
  */
 @SuppressWarnings("rawtypes")
 public class SimpleJSONProtocol extends TProtocol {
@@ -71,7 +72,7 @@ public class SimpleJSONProtocol extends TProtocol {
 	public static class Factory implements TProtocolFactory {
 		private final Class<?> ifaceClass;
 		private final boolean isServer;
-		
+
 		public Factory() {
 			this(null, true);
 		}
@@ -101,9 +102,9 @@ public class SimpleJSONProtocol extends TProtocol {
 	private static final TStruct ANONYMOUS_STRUCT = new TStruct();
 	private static final TField ANONYMOUS_FIELD = new TField();
 	// private static final TMessage EMPTY_MESSAGE = new TMessage();
-//	private static final TSet EMPTY_SET = new TSet();
-//	private static final TList EMPTY_LIST = new TList();
-//	private static final TMap EMPTY_MAP = new TMap();
+	// private static final TSet EMPTY_SET = new TSet();
+	// private static final TList EMPTY_LIST = new TList();
+	// private static final TMap EMPTY_MAP = new TMap();
 	private static final String LIST = "list";
 	private static final String SET = "set";
 	private static final String MAP = "map";
@@ -203,13 +204,15 @@ public class SimpleJSONProtocol extends TProtocol {
 	private Class argsTBaseClass;
 
 	private final Class<?> ifaceClass;
-    private final boolean isServer;
+	private final boolean isServer;
+
 	/**
 	 * Constructor
 	 */
 	public SimpleJSONProtocol(TTransport trans) {
 		this(trans, null, true);
 	}
+
 	/**
 	 * Constructor
 	 */
@@ -454,9 +457,10 @@ public class SimpleJSONProtocol extends TProtocol {
 					e.printStackTrace();
 				}
 			}
-			if(argsTBaseClass == null){
-//				throw new TProtocolException(TApplicationException.UNKNOWN_METHOD,
-//						"Invalid method name: '" + msg.name + "'");
+			if (argsTBaseClass == null) {
+				// throw new
+				// TProtocolException(TApplicationException.UNKNOWN_METHOD,
+				// "Invalid method name: '" + msg.name + "'");
 				return new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid);
 			}
 			@SuppressWarnings("unchecked")
@@ -465,9 +469,9 @@ public class SimpleJSONProtocol extends TProtocol {
 		}
 		return msg;
 	}
-	
-	private static ConcurrentHashMap<String,Class<?>> tBaseclassCache = new ConcurrentHashMap<String, Class<?>>();
-	
+
+	private static ConcurrentHashMap<String, Class<?>> tBaseclassCache = new ConcurrentHashMap<String, Class<?>>();
+
 	private Class guessTBaseClassByMethodName(String name) throws Exception {
 		String classSimpleName = String.format("%s_%s", name, isServer ? "args" : "result");
 		Class<?> result = tBaseclassCache.get(classSimpleName);
@@ -481,6 +485,19 @@ public class SimpleJSONProtocol extends TProtocol {
 				tBaseclassCache.putIfAbsent(classSimpleName, result);
 				return result;
 			} catch (Exception e) {
+				Class[] cls = ifaceClass.getInterfaces();
+				if (cls != null) {
+					for (Class c : cls) {
+						String cname = String.format("%s$%s", c.getEnclosingClass().getName(), classSimpleName);
+						try {
+							result = Class.forName(cname);
+							className = cname;
+							tBaseclassCache.putIfAbsent(classSimpleName, result);
+							return result;
+						} catch (Exception ex) {
+						}
+					}
+				}
 			}
 		}
 		java.lang.reflect.Field f = FieldMetaData.class.getDeclaredField("structMap");
