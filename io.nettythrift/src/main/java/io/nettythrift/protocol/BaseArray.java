@@ -181,8 +181,11 @@ class BaseArray {
 				createIndex++;
 			} else {
 				int i = createIndex;
-				while (i < obj.length() && obj.get(i) == null)i++;
-
+				Object o;
+				while (i < obj.length() && ((o=obj.get(i)) == null||o==JSONObject.NULL)){
+					currentIndex();// array index: +1
+					i++;
+				}
 				entry = elementMetaArr[i];
 				createIndex = i + 1;
 			}
