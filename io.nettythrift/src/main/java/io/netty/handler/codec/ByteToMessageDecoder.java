@@ -234,11 +234,7 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
                 throw new DecoderException(t);
             } finally {
                 if (cumulation != null && !cumulation.isReadable()) {
-                    try {
-						cumulation.release();
-					} catch (Throwable e) {
-						System.err.printf("%s : %s\n", getClass().getName(), e);
-					}
+                	if( cumulation.refCnt()>0)cumulation.release();
                     cumulation = null;
                 }
                 int size = out.size();
