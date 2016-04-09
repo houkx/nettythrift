@@ -17,7 +17,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<Response> {
 	// }
 
 	@Override
-	public void channelRead0(ChannelHandlerContext ctx, Response in) {
+	public void messageReceived(ChannelHandlerContext ctx, Response in) {
 		System.out.println("Client received: " + in); // #4
 	}
 

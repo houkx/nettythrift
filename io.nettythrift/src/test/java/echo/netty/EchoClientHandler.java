@@ -19,7 +19,7 @@ public class EchoClientHandler extends SimpleChannelInboundHandler<ByteBuf> {
 	}
 
 	@Override
-	public void channelRead0(ChannelHandlerContext ctx, ByteBuf in) {
+	public void messageReceived(ChannelHandlerContext ctx, ByteBuf in) {
 		System.out.println("Client received: "
 				+ ByteBufUtil.hexDump(in.readBytes(in.readableBytes()))); // #4
 	}

@@ -135,7 +135,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 	private void notifyHttpDecoder(ChannelHandlerContext ch, ByteBuf buffer, String proxyInfo,boolean fromProgram) {
 		ch.pipeline().addAfter("msgDecoder", "httpReqDecoder", new HttpRequestDecoder());
 		ch.pipeline().addAfter("httpReqDecoder", "httpRespEncoder", new HttpResponseEncoder());
-		ch.pipeline().addAfter("httpRespEncoder", "httpAggegator", new HttpObjectAggregator(512 * 1024, true));
+		ch.pipeline().addAfter("httpRespEncoder", "httpAggegator", new HttpObjectAggregator(512 * 1024));
 		ch.pipeline().addAfter("httpAggegator", "httpReq2ThriftMsgDecoder",
 				new HttpReq2MsgDecoder(serverDef, proxyInfo, fromProgram));
 		ch.fireChannelRead(buffer);// 往下个ChannelInBoundHandler 传递

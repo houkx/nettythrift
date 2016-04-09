@@ -28,7 +28,7 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, FullHttpRequest msg, List<Object> out) throws Exception {
-		String queryStr = msg.getUri();
+		String queryStr = msg.uri();
 		if (queryStr != null) {
 			queryStr = queryStr.trim();
 			if (queryStr.length() > 0 && queryStr.charAt(0) == '/') {
@@ -46,7 +46,7 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 		} else {
 			queryStr = "";
 		}
-		logger.debug("decode queryStr ={}, method={}, msg={}", queryStr, msg.getMethod(), msg);
+		logger.debug("decode queryStr ={}, method={}, msg={}", queryStr, msg.method(), msg);
 		// System.out.printf("decode queryStr = %s ,method=%s, msgId=%d,
 		// msg=%s\n", queryStr, msg.getMethod(),
 		// System.identityHashCode(msg),
@@ -62,7 +62,7 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 			content = Unpooled.wrappedBuffer(bytes).retain();
 		}
 		TProtocolFactory factory = serverDef.getProcessor().getProtocolFactory(content);
-
+		logger.debug("TProtocolFactory = {}",factory);
 		if (factory != null && content.isReadable()) {
 
 			ThriftMessage thriftMessage = new ThriftMessage(content, ThriftTransportType.HTTP)

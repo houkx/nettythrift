@@ -19,15 +19,16 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.internal.RecyclableArrayList;
 import io.netty.util.internal.StringUtil;
 
 import java.util.List;
 
 /**
- * {@link ChannelInboundHandlerAdapter} which decodes bytes in a stream-like fashion from one {@link ByteBuf} to an
+ * A {@link ChannelHandler} which decodes bytes in a stream-like fashion from one {@link ByteBuf} to an
  * other Message type.
  *
  * For example here is an implementation which reads all readable bytes from
@@ -67,7 +68,7 @@ import java.util.List;
  * is not released or added to the <tt>out</tt> {@link List}. Use derived buffers like {@link ByteBuf#readSlice(int)}
  * to avoid leaking memory.
  */
-public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter {
+public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
 
     /**
      * Cumulate {@link ByteBuf}s by merge them into one {@link ByteBuf}'s, using memory copies.
@@ -133,10 +134,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
     ByteBuf cumulation;
     private Cumulator cumulator = MERGE_CUMULATOR;
     private boolean singleDecode;
-    private boolean decodeWasNull;
     private boolean first;
-    private int discardAfterReads = 16;
-    private int numReads;
 
     protected ByteToMessageDecoder() {
         CodecUtil.ensureNotSharable(this);
@@ -173,17 +171,6 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
     }
 
     /**
-     * Set the number of reads after which {@link ByteBuf#discardSomeReadBytes()} are called and so free up memory.
-     * The default is {@code 16}.
-     */
-    public void setDiscardAfterReads(int discardAfterReads) {
-        if (discardAfterReads <= 0) {
-            throw new IllegalArgumentException("discardAfterReads must be > 0");
-        }
-        this.discardAfterReads = discardAfterReads;
-    }
-
-    /**
      * Returns the actual number of readable bytes in the internal cumulative
      * buffer of this decoder. You usually do not need to rely on this value
      * to write a decoder. Use it only when you must use it at your own risk.
@@ -214,12 +201,11 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
             ByteBuf bytes = buf.readBytes(readable);
             buf.release();
             ctx.fireChannelRead(bytes);
+            ctx.fireChannelReadComplete();
         } else {
             buf.release();
         }
         cumulation = null;
-        numReads = 0;
-        ctx.fireChannelReadComplete();
         handlerRemoved0(ctx);
     }
 
@@ -248,24 +234,18 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                 throw new DecoderException(t);
             } finally {
                 if (cumulation != null && !cumulation.isReadable()) {
-                    numReads = 0;
                     try {
 						cumulation.release();
-					} catch (Exception e) {
-						System.err.println("当前 decoder类:"+this);
-						e.printStackTrace();
+					} catch (Throwable e) {
+						System.err.printf("%s : %s\n", getClass().getName(), e);
 					}
                     cumulation = null;
-                } else if (++ numReads >= discardAfterReads) {
-                    // We did enough reads already try to discard some bytes so we not risk to see a OOME.
-                    // See https://github.com/netty/netty/issues/4275
-                    numReads = 0;
-                    discardSomeReadBytes();
                 }
-
                 int size = out.size();
-                decodeWasNull = !out.insertSinceRecycled();
-                fireChannelRead(ctx, out, size);
+
+                for (int i = 0; i < size; i ++) {
+                    ctx.fireChannelRead(out.get(i));
+                }
                 out.recycle();
             }
         } else {
@@ -273,29 +253,8 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
         }
     }
 
-    /**
-     * Get {@code numElements} out of the {@link List} and forward these through the pipeline.
-     */
-    static void fireChannelRead(ChannelHandlerContext ctx, List<Object> msgs, int numElements) {
-        for (int i = 0; i < numElements; i ++) {
-            ctx.fireChannelRead(msgs.get(i));
-        }
-    }
-
     @Override
     public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-        numReads = 0;
-        discardSomeReadBytes();
-        if (decodeWasNull) {
-            decodeWasNull = false;
-            if (!ctx.channel().config().isAutoRead()) {
-                ctx.read();
-            }
-        }
-        ctx.fireChannelReadComplete();
-    }
-
-    protected final void discardSomeReadBytes() {
         if (cumulation != null && !first && cumulation.refCnt() == 1) {
             // discard some bytes if possible to make more room in the
             // buffer but only if the refCnt == 1  as otherwise the user may have
@@ -306,6 +265,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
             // - https://github.com/netty/netty/issues/1764
             cumulation.discardSomeReadBytes();
         }
+        ctx.fireChannelReadComplete();
     }
 
     @Override
@@ -329,7 +289,9 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                     cumulation = null;
                 }
                 int size = out.size();
-                fireChannelRead(ctx, out, size);
+                for (int i = 0; i < size; i++) {
+                    ctx.fireChannelRead(out.get(i));
+                }
                 if (size > 0) {
                     // Something was read, call fireChannelReadComplete()
                     ctx.fireChannelReadComplete();
@@ -354,22 +316,6 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
         try {
             while (in.isReadable()) {
                 int outSize = out.size();
-
-                if (outSize > 0) {
-                    fireChannelRead(ctx, out, outSize);
-                    out.clear();
-
-                    // Check if this handler was removed before continuing with decoding.
-                    // If it was removed, it is not safe to continue to operate on the buffer.
-                    //
-                    // See:
-                    // - https://github.com/netty/netty/issues/4635
-                    if (ctx.isRemoved()) {
-                        break;
-                    }
-                    outSize = 0;
-                }
-
                 int oldInputLength = in.readableBytes();
                 decode(ctx, in, out);
 

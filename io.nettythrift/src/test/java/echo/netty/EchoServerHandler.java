@@ -10,7 +10,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 // #1
 public class EchoServerHandler extends SimpleChannelInboundHandler<Object> {
 	@Override
-	public void channelRead0(ChannelHandlerContext ctx, Object msg) {
+	public void messageReceived(ChannelHandlerContext ctx, Object msg) {
 		System.out.println("Server received: @" + System.identityHashCode(msg)
 				+ " " + msg);
 		ctx.write(msg);// #2
