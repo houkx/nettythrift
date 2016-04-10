@@ -3,6 +3,7 @@
  */
 package io.nettythrift;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -49,54 +51,62 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 	}
 
 	private String proxyInfo;
-	private boolean firstInvokeProxyHandler = true;
+	private boolean firstTimeDecode = true;
+	private List<ByteBuf> buflist = new ArrayList<ByteBuf>(8);
 
 	private Object decode(final ChannelHandlerContext ctx, ByteBuf buffer) throws Exception {
 		// return super.decode(ctx, in);
 		if (!buffer.isReadable()) {
 			return null;
 		}
-		if (firstInvokeProxyHandler && proxyHandler != null) {
-			firstInvokeProxyHandler = false;
-			proxyInfo = proxyHandler.getHeadProxyInfo(buffer);
-			if (!buffer.isReadable()) {
+		
+		buflist.add(buffer.retain());
+		if (firstTimeDecode) {
+			firstTimeDecode = false;
+			if (proxyHandler != null) {
+				proxyInfo = proxyHandler.getHeadProxyInfo(buffer);
+				if (!buffer.isReadable()) {
+					return null;
+				}
+			}
+			short firstByte = buffer.getUnsignedByte(0);
+			logger.debug("[{}]:: decode():firstByte = {},len={}", this, firstByte, buffer.readableBytes());
+			if (firstByte == 80) {
+				logger.debug("httpRequest from program.");
+				notifyHttpDecoder(ctx, buffer, proxyInfo, true);
 				return null;
 			}
-		}
-		short firstByte = buffer.getUnsignedByte(0);
-		logger.debug("decode():firstByte = {}", firstByte);
-		// System.out.printf("decode():firstByte = %s,", firstByte);
-		if (firstByte == 80) {
-			logger.debug("httpRequest from program.");
-			notifyHttpDecoder(ctx, buffer, proxyInfo, true);
-			return null;
-		}
-		if (firstByte == 71) {// 从浏览器访问时首字符是71
-			logger.debug("HttpRequest from brower.");
-			notifyHttpDecoder(ctx, buffer, proxyInfo, false);
-			return null;
-		}
-
-		TProtocolFactory fac = null;
-		if ((fac = serverDef.getProcessor().getProtocolFactory(buffer)) != null) {
-			logger.debug("TTProtocolFactory = {} when UnframedMessage ", fac);
-			return directReadUnframedMessage(ctx, buffer, fac);
-		} else if (buffer.readableBytes() < MESSAGE_FRAME_SIZE) {
-			// Expecting a framed message, but not enough bytes available to
-			// read the frame size
-			return null;
-		} else {
-			ByteBuf messageBuffer = tryDecodeFramedMessage(ctx, buffer, true);
-
-			if (messageBuffer == null) {
+			if (firstByte == 71) {// 从浏览器访问时首字符是71
+				logger.debug("HttpRequest from brower.");
+				notifyHttpDecoder(ctx, buffer, proxyInfo, false);
 				return null;
 			}
-			TProtocolFactory factory = serverDef.getProcessor().getProtocolFactory(messageBuffer);
-			logger.debug("TTProtocolFactory = {} when FramedMessage ", factory);
-			// Messages with a zero MSB in the first byte are framed messages
-			return new ThriftMessage(messageBuffer, ThriftTransportType.FRAMED).setProctocolFactory(factory)
-					.setProxyInfo(proxyInfo);
+
+			TProtocolFactory fac = null;
+			if ((fac = serverDef.getProcessor().getProtocolFactory(buffer)) != null) {
+				logger.debug("TTProtocolFactory = {} when UnframedMessage ", fac);
+				return directReadUnframedMessage(ctx, buffer, fac);
+			} else if (buffer.readableBytes() < MESSAGE_FRAME_SIZE) {
+				// Expecting a framed message, but not enough bytes available to
+				// read the frame size
+				return null;
+			} else {
+				ByteBuf messageBuffer = tryDecodeFramedMessage(ctx, buffer, true);
+
+				if (messageBuffer == null) {
+					return null;
+				}
+				TProtocolFactory factory = serverDef.getProcessor().getProtocolFactory(messageBuffer);
+				logger.debug("TTProtocolFactory = {} when FramedMessage ", factory);
+				// Messages with a zero MSB in the first byte are framed
+				// messages
+				return new ThriftMessage(messageBuffer, ThriftTransportType.FRAMED).setProctocolFactory(factory)
+						.setProxyInfo(proxyInfo);
+			}
 		}
+		logger.debug("[{}]:: decode(): len={}", this, buffer.readableBytes());
+		ctx.fireChannelRead(buffer);
+		return null;
 	}
 
 	private Object directReadUnframedMessage(final ChannelHandlerContext ctx, ByteBuf buffer, TProtocolFactory fac)
@@ -132,7 +142,20 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		return msg;
 	}
 
-	private void notifyHttpDecoder(ChannelHandlerContext ch, ByteBuf buffer, String proxyInfo,boolean fromProgram) {
+	private boolean notifyNextHandler;
+
+	@Override
+	public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+		logger.debug("[{}]:: channelReadComplete(): bufCount={}", this,buflist.size());
+		super.channelReadComplete(ctx);
+		if (notifyNextHandler && buflist.size() > 1) {
+			ByteBuf totalBuf = Unpooled.wrappedBuffer(buflist.toArray(new ByteBuf[0]));
+			ctx.fireChannelRead(totalBuf);
+		}
+	}
+
+	private void notifyHttpDecoder(ChannelHandlerContext ch, ByteBuf buffer, String proxyInfo, boolean fromProgram) {
+		notifyNextHandler = true;
 		ch.pipeline().addAfter("msgDecoder", "httpReqDecoder", new HttpRequestDecoder());
 		ch.pipeline().addAfter("httpReqDecoder", "httpRespEncoder", new HttpResponseEncoder());
 		ch.pipeline().addAfter("httpRespEncoder", "httpAggegator", new HttpObjectAggregator(512 * 1024));
@@ -158,8 +181,6 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		// The full message is larger by the size of the frame size prefix
 		int messageLength = buffer.getInt(messageStartReaderIndex) + MESSAGE_FRAME_SIZE;
 		int messageContentsLength = messageStartReaderIndex + messageLength - messageContentsOffset;
-//		System.out.printf("messageLength = %d, messageContentsLength=%d, offset=%d\n", messageLength,
-//				messageContentsLength, messageContentsOffset);
 		if (messageContentsLength > maxFrameSize) {
 			throw new TooLongFrameException("Maximum frame size of " + maxFrameSize + " exceeded");
 		}
