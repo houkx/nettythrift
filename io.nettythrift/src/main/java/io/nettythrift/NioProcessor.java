@@ -63,7 +63,7 @@ public class NioProcessor<I> {
 	 * 执行void方法的线程池
 	 */
 	private final ExecutorService voidMethodExecutor;
-	private final HashMap<Byte, TProtocolFactory> protocolFactoryMap = new HashMap<Byte, TProtocolFactory>(8);
+	private final HashMap<Object, TProtocolFactory> protocolFactoryMap = new HashMap<Object, TProtocolFactory>(8);
 	private Map<String, Boolean> voidReturnMethods = Collections.emptyMap();
 
 	/**
@@ -103,9 +103,13 @@ public class NioProcessor<I> {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		protocolFactoryMap.put((byte) 0x80, new TBinaryProtocol.Factory());
-		protocolFactoryMap.put((byte) 0x82, new TCompactProtocol.Factory());
-		protocolFactoryMap.put((byte) 91, new TJSONProtocol.Factory());
+		TProtocolFactory f = new TBinaryProtocol.Factory();
+		protocolFactoryMap.put(0x80, f);
+		protocolFactoryMap.put((byte)0x80, f);
+		f = new TCompactProtocol.Factory();
+		protocolFactoryMap.put(0x82, f);
+		protocolFactoryMap.put((byte)0x82, f);
+		protocolFactoryMap.put(91, new TJSONProtocol.Factory());
 		Class<?>[] ifcs = iface.getClass().getInterfaces();
 		Class ifaceClass = null;
 		for (Class c : ifcs) {
@@ -127,16 +131,18 @@ public class NioProcessor<I> {
 		} else {
 			LOGGER.debug(" ifaceClass = {}", ifaceClass);
 		}
-		protocolFactoryMap.put((byte) 92, new SimpleJSONProtocol.Factory(ifaceClass));
+		protocolFactoryMap.put(92, new SimpleJSONProtocol.Factory(ifaceClass));
 	}
 
 	TProtocolFactory getProtocolFactory(ByteBuf buf) throws TException {
-		byte headByte = buf.getByte(0);
+		int start = buf.readerIndex();
+		byte headByte = buf.getByte(start);
 		// SimpleJson的前两个字符为：[" ，而TJSONProtocol的第二个字符为一个数字
-		if (headByte == 91 && buf.capacity() > 1 && buf.getByte(1) == 34) {
+		if (headByte == 91 && buf.capacity() > 1 && buf.getByte(start+1) == 34) {
 			headByte = 92;
 		}
 		TProtocolFactory fac = protocolFactoryMap.get(headByte);
+		LOGGER.debug("headByte={}, fac = {}",headByte,fac);
 		if (fac != null) {
 			return fac;
 		}

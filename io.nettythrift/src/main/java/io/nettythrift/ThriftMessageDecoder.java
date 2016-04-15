@@ -51,20 +51,17 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 	}
 
 	private String proxyInfo;
-	private boolean hasParsedProxyInfo;
 	private List<ByteBuf> buflist = new ArrayList<ByteBuf>(8);
 	private boolean notifyNextHandler;
 
 	private void reset() {
-		proxyInfo = null;
 		buflist = new ArrayList<ByteBuf>(8);
 		notifyNextHandler = false;
-		hasParsedProxyInfo = false;
 	}
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-		logger.debug("channelRead:: msg={}", msg);
+		logger.debug("{}:: channelRead:msg={}", this, msg);
 		super.channelRead(ctx, msg);
 	}
 
@@ -73,20 +70,19 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		if (!buffer.isReadable()) {
 			return null;
 		}
-		if (!hasParsedProxyInfo) {
-			hasParsedProxyInfo = true;
-			if (proxyHandler != null) {
-				proxyInfo = proxyHandler.getHeadProxyInfo(buffer);
-				if (!buffer.isReadable()) {
-					return null;
-				}
+		if (proxyInfo == null && proxyHandler != null) {
+			logger.debug("{}:: 尝试读取解析proxy", this);
+			proxyInfo = proxyHandler.getHeadProxyInfo(buffer);
+			if (!buffer.isReadable()) {
+				return null;
 			}
 		}
 
 		buflist.add(buffer.retain());
 		if (buflist.size() == 1) {
-			short firstByte = buffer.getUnsignedByte(0);
-			logger.debug("[{}]:: decode():firstByte = {},len={}", this+"-"+ctx.channel(), firstByte, buffer.readableBytes());
+			short firstByte = buffer.getUnsignedByte(buffer.readerIndex());
+			logger.debug("[{}]:: decode():firstByte = {},len={}", this + "-" + ctx.channel(), firstByte,
+					buffer.readableBytes());
 			if (firstByte == 80) {
 				logger.debug("httpRequest from program.");
 				notifyHttpDecoder(ctx, buffer, proxyInfo, true);
@@ -100,7 +96,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 
 			TProtocolFactory fac = null;
 			if ((fac = serverDef.getProcessor().getProtocolFactory(buffer)) != null) {
-				logger.debug("TTProtocolFactory = {} when UnframedMessage ", fac);
+				logger.debug("{}::TTProtocolFactory = {} when UnframedMessage ,proxyInfo={}", this, fac, proxyInfo);
 				return directReadUnframedMessage(ctx, buffer, fac);
 			} else if (buffer.readableBytes() < MESSAGE_FRAME_SIZE) {
 				// Expecting a framed message, but not enough bytes available to
@@ -120,7 +116,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 						.setProxyInfo(proxyInfo);
 			}
 		}
-		logger.debug("[{}]:: decode(): len={}", this+"-"+ctx.channel(), buffer.readableBytes());
+		logger.debug("[{}]:: decode(): len={}", this + "-" + ctx.channel(), buffer.readableBytes());
 		ctx.fireChannelRead(buffer);
 		return null;
 	}
@@ -160,7 +156,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 
 	@Override
 	public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-		logger.debug("[@{}]:: channelReadComplete(): bufCount={}", hashCode()+"-"+ctx.channel(), buflist.size());
+		logger.debug("[{}]:: channelReadComplete(): bufCount={}", this + "-" + ctx.channel(), buflist.size());
 		super.channelReadComplete(ctx);
 		if (notifyNextHandler && buflist.size() > 1) {
 			ByteBuf totalBuf = Unpooled.wrappedBuffer(buflist.toArray(new ByteBuf[0]));
