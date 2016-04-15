@@ -14,11 +14,15 @@ public class CommonServer {
 		NioEventLoopGroup workerGroup = new NioEventLoopGroup();
 		try {
 			ServerBootstrap b = new ServerBootstrap();
-			b.group(bossGroup,workerGroup).channel(NioServerSocketChannel.class)
-			   .option(ChannelOption.SO_BACKLOG, 100)
+			b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
+					.option(ChannelOption.SO_BACKLOG, Integer.parseInt(System.getProperty("so.BACKLOG", "100")))
+//					.option(ChannelOption.SO_KEEPALIVE, Boolean.parseBoolean(System.getProperty("so.KEEPALIVE", "true")))
+//					.option(ChannelOption.SO_LINGER, Integer.parseInt(System.getProperty("so.LINGER", "0")))
+					.option(ChannelOption.SO_REUSEADDR, Boolean.parseBoolean(System.getProperty("so.REUSEADDR", "true")))
 					.childHandler(channelHandler);
 			ChannelFuture f = b.bind(port).sync();
-//			System.out.printf("Server started and listen on port:%d\n", port);//
+			// System.out.printf("Server started and listen on port:%d\n",
+			// port);//
 			f.channel().closeFuture().sync();
 		} finally {
 			bossGroup.shutdownGracefully().sync();

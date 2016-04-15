@@ -57,8 +57,17 @@ class BaseArray {
 				if (map != null && map.size() > 0) {
 					elementMetas = new HashMap<String, Map.Entry<TFieldIdEnum, FieldMetaData>>(map.size());
 					for (Map.Entry<TFieldIdEnum, FieldMetaData> m : map.entrySet()) {
-						elementMetas.put(m.getKey().getFieldName(), m);
+						TFieldIdEnum k = m.getKey();
+						// fieldName <-> metaData
+						elementMetas.put(k.getFieldName(), m);
+						// id <-> metaData
+						elementMetas.put(String.valueOf(k.getThriftFieldId()), m);
 					}
+				}
+				String fieldName = obj.getString(0);
+				if (!useId && fieldName.length() > 0) {
+					char c0 = fieldName.charAt(0);
+					useId = c0 >= '0' && c0 <= '9';
 				}
 			} else {
 				elementMetaArr = map.entrySet().toArray(new Map.Entry[0]);
@@ -166,6 +175,11 @@ class BaseArray {
 	}
 
 	private FieldMetaData prevFieldMetaData;
+	private boolean useId;
+
+	public boolean useId() {
+		return useId;
+	}
 
 	/**
 	 * Struct use only.
@@ -182,7 +196,7 @@ class BaseArray {
 			} else {
 				int i = createIndex;
 				Object o;
-				while (i < obj.length() && ((o=obj.get(i)) == null||o==JSONObject.NULL)){
+				while (i < obj.length() && ((o = obj.get(i)) == null || o == JSONObject.NULL)) {
 					currentIndex();// array index: +1
 					i++;
 				}

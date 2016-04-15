@@ -32,7 +32,7 @@ public class ThriftMessage {
 	public boolean hasRead;
 	public ReadResult readResult;
 	public boolean fromProgram;
-	
+	public boolean connectionKeepAlive;
 	public ThriftMessage(ByteBuf buffer, ThriftTransportType transportType) {
 		this.buffer = buffer;
 		this.transportType = transportType;
@@ -48,7 +48,8 @@ public class ThriftMessage {
 
 	public ThriftMessage clone(ByteBuf messageBuffer) {
 		return new ThriftMessage(messageBuffer, transportType).setProctocolFactory(proctocolFactory)
-				.setProcessStartTimeMillis(processStartTimeMillis).fromProgram(fromProgram);
+				.setProcessStartTimeMillis(processStartTimeMillis).fromProgram(fromProgram)
+				.setConnectionKeepAlive(connectionKeepAlive);
 	}
 
 	private ThriftMessage fromProgram(boolean fromProgram) {
@@ -75,6 +76,11 @@ public class ThriftMessage {
 
 	public ThriftMessage setProcessStartTimeMillis(long processStartTimeMillis) {
 		this.processStartTimeMillis = processStartTimeMillis;
+		return this;
+	}
+
+	public ThriftMessage setConnectionKeepAlive(boolean connectionKeepAlive) {
+		this.connectionKeepAlive = connectionKeepAlive;
 		return this;
 	}
 

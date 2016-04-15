@@ -256,7 +256,7 @@ public class SimpleJSONProtocol extends TProtocol {
 
 	public void writeFieldBegin(TField field) throws TException {
 		// Note that extra type information is omitted in JSON!
-		writeString(field.name);
+		writeString(useFieldId? String.valueOf(field.id) : field.name);
 	}
 
 	public void writeFieldEnd() {
@@ -564,9 +564,14 @@ public class SimpleJSONProtocol extends TProtocol {
 		MapMetaData mm = (MapMetaData) obj.getMetaData();
 		return new TMap(mm.keyMetaData.type, mm.valueMetaData.type, obj.length());
 	}
-
+	
+    private boolean useFieldId;
+    
 	public void readStructEnd() {
-		structStack.pop();
+		BaseArray prevStruct = structStack.pop();
+		if (!useFieldId && prevStruct.useId()) {
+			useFieldId = true;
+		}
 	}
 
 	public void readListEnd() {

@@ -9,9 +9,11 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderUtil;
 import io.nettythrift.transport.ThriftTransportType;
 
 public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest> {
@@ -69,12 +71,13 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 					.setProctocolFactory(factory);
 			thriftMessage.fromProgram = fromProgram;
 			thriftMessage.proxyInfo = proxyInfo;
+			thriftMessage.connectionKeepAlive = HttpHeaderUtil.isKeepAlive(msg);
 			out.add(thriftMessage);
 		} else {
 			ThriftMessage thriftMessage = new ThriftMessage(Unpooled.EMPTY_BUFFER, ThriftTransportType.HTTP);
-			thriftMessage.responseCode=404;
-			thriftMessage.responseMessage="res not found!";
-			ctx.writeAndFlush(thriftMessage );
+			thriftMessage.responseCode = 404;
+			thriftMessage.responseMessage = "res not found!";
+			ctx.writeAndFlush(thriftMessage).addListener(ChannelFutureListener.CLOSE);
 			logger.error("factory =={}, content={}", factory, content);
 		}
 	}

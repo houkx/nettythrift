@@ -7,6 +7,7 @@ import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
 
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -19,8 +20,6 @@ import io.nettythrift.transport.ThriftTransportType;
  */
 public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessage> {
 	private final ServerConfig serverDef;
-	// private final AtomicInteger dispatcherSequenceId = new AtomicInteger(0);
-	// private final AtomicInteger lastResponseWrittenId = new AtomicInteger(0);
 
 	public ThriftServerHandler(ServerConfig serverDef) {
 		this.serverDef = serverDef;
@@ -46,7 +45,12 @@ public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessa
 					ThriftMessage response = message.clone(messageTransport.getOutputBuffer());
 					response.responseCode = code;
 					response.responseMessage = respMessage;
-					ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+					ChannelFuture chft = ctx.writeAndFlush(response);
+					if (message.getTransportType() == ThriftTransportType.HTTP) {
+						chft.addListener(ChannelFutureListener.CLOSE);
+					} else {
+						chft.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+					}
 				}
 
 				@Override
@@ -58,10 +62,9 @@ public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessa
 		}
 		TNiftyTransport msgTrans = new TNiftyTransport(ctx.channel(), message.getBuffer(), TNiftyTransport.MOD_RW);
 		TProtocolFactory proctocolFactory = message.getProctocolFactory();
-		TProtocol inProtocol = proctocolFactory.getProtocol(msgTrans);
-		TProtocol outProtocol = proctocolFactory.getProtocol(msgTrans);
+		TProtocol protocol = proctocolFactory.getProtocol(msgTrans);
 
-		processRequest(ctx, message, msgTrans, inProtocol, outProtocol);
+		processRequest(ctx, message, msgTrans, protocol, protocol);
 	}
 
 	private void processRequest(final ChannelHandlerContext ctx, final ThriftMessage message,
@@ -79,7 +82,12 @@ public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessa
 					ThriftMessage response = message.clone(messageTransport.getOutputBuffer());
 					response.responseCode = code;
 					response.responseMessage = respMessage;
-					ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+					ChannelFuture chft = ctx.writeAndFlush(response);
+					if (message.getTransportType() == ThriftTransportType.HTTP) {
+						chft.addListener(ChannelFutureListener.CLOSE);
+					} else {
+						chft.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+					}
 				}
 
 				@Override

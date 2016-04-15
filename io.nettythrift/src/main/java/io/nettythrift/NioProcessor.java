@@ -10,9 +10,12 @@ import static io.nettythrift.ResponseCodes.CODE_SERVER_INTERNAL_ERR;
 import static io.nettythrift.ResponseCodes.CODE_SUCCESS;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.thrift.ProcessFunction;
@@ -29,6 +32,7 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolException;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.protocol.TProtocolUtil;
+import org.apache.thrift.protocol.TStruct;
 import org.apache.thrift.protocol.TType;
 import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
@@ -47,18 +51,55 @@ public class NioProcessor<I> {
 	private static final Logger LOGGER = LoggerFactory.getLogger(NioProcessor.class);
 
 	private final Map<String, ProcessFunction<I, ? extends TBase>> processMap;
+	/**
+	 * Iface接口对象
+	 */
 	private I iface;
-	private final ExecutorService executor;
+	/**
+	 * 业务线程池
+	 */
+	private final ExecutorService businessExecutor;
+	/**
+	 * 执行void方法的线程池
+	 */
+	private final ExecutorService voidMethodExecutor;
 	private final HashMap<Byte, TProtocolFactory> protocolFactoryMap = new HashMap<Byte, TProtocolFactory>(8);
+	private Map<String, Boolean> voidReturnMethods = Collections.emptyMap();
 
-	@SuppressWarnings("unchecked")
+	/**
+	 * NioProcessor 构造方法--1
+	 * <p>
+	 * 默认情况：返回值为void的方法立刻返回，且使用独立的单线程池。
+	 * 
+	 * @param targetProcessor
+	 * @param executor
+	 */
 	public NioProcessor(TBaseProcessor<I> targetProcessor, ExecutorService executor) {
-		this.executor = executor;
-		processMap = targetProcessor.getProcessMapView();
+		this(targetProcessor, executor, true, Executors.newSingleThreadExecutor());
+	}
+
+	/**
+	 * NioProcessor 构造方法 -- 2
+	 * 
+	 * @param userProcessor
+	 *            - 用户的thrift Processor
+	 * @param executor
+	 *            - 业务线程池
+	 * @param voidMethodDirectReturn
+	 *            - 返回值为void的方法是否立刻返回
+	 * @param voidMethodExecutor
+	 *            - 执行void方法的线程池
+	 */
+	@SuppressWarnings("unchecked")
+	public NioProcessor(TBaseProcessor<I> userProcessor, ExecutorService executor, boolean voidMethodDirectReturn,
+			ExecutorService voidMethodExecutor) {
+		this.businessExecutor = executor;
+		this.voidMethodExecutor = voidMethodExecutor == null ? executor : voidMethodExecutor;
+		processMap = userProcessor.getProcessMapView();
 		try {
 			Field f = TBaseProcessor.class.getDeclaredField("iface");
 			f.setAccessible(true);
-			iface = (I) f.get(targetProcessor);
+			iface = (I) f.get(userProcessor);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -70,6 +111,14 @@ public class NioProcessor<I> {
 		for (Class c : ifcs) {
 			if (c.getEnclosingClass() != null && c.getSimpleName().equals("Iface")) {
 				ifaceClass = c;
+				if (voidMethodDirectReturn) {
+					voidReturnMethods = new HashMap<String, Boolean>();
+					for (Method m : c.getMethods()) {
+						if (m.getReturnType() == void.class) {
+							voidReturnMethods.put(m.getName(), true);
+						}
+					}
+				}
 				break;
 			}
 		}
@@ -108,7 +157,7 @@ public class NioProcessor<I> {
 
 	}
 
-	 ReadResult read(final NioWriterFlusher ctx, TProtocol in, final TProtocol out, ServerConfig serverDef,
+	ReadResult read(final NioWriterFlusher ctx, TProtocol in, final TProtocol out, ServerConfig serverDef,
 			String proxyInfo) throws TException {
 		final TMessage msg = in.readMessageBegin();
 		final ProcessFunction fn = processMap.get(msg.name);
@@ -139,23 +188,44 @@ public class NioProcessor<I> {
 		if (proxyInfo != null && serverDef.getProxyHandler() != null) {
 			LOGGER.debug("set proxyInfo:{}, proxyHandler={}", proxyInfo, serverDef.getProxyHandler());
 			serverDef.getProxyHandler().handlerProxyInfo(args, proxyInfo);
-		} else {
-			LOGGER.warn("proxyInfo={}, ProxyHandler={}", proxyInfo, serverDef.getProxyHandler());
 		}
 		return new ReadResult(msg, args, fn);
 	}
 
-	 void write(final NioWriterFlusher ctx, final TProtocol out, ServerConfig serverDef,
-			String proxyInfo, final ReadResult readResult) throws TException {
+	void write(final NioWriterFlusher ctx, final TProtocol out, ServerConfig serverDef, String proxyInfo,
+			final ReadResult readResult) throws TException {
 		if (readResult == null) {
 			return;
 		}
 		final TMessage msg = readResult.msg;
+		// 判断方法返回值是否为void, 如果是，则先返回结果给客户端，然后提交给 voidMethodExecutor 执行
+		if (voidReturnMethods.get(msg.name) == Boolean.TRUE) {
+			try {
+				TMessage resultMsg = new TMessage(msg.name, TMessageType.REPLY, msg.seqid);
+				writeOut(ctx, out, resultMsg, null, CODE_SUCCESS, "");
+			} catch (Throwable e) {
+				LOGGER.error("fail to write reponse for void method:" + msg.name, e);
+				return;
+			}
+			voidMethodExecutor.submit(new Runnable() {
+				@SuppressWarnings("unchecked")
+				@Override
+				public void run() {
+					// 执行业务
+					try {
+						readResult.fn.getResult(iface, readResult.args);
+					} catch (Throwable tex) {
+						LOGGER.error("fail to execute void method:" + msg.name, tex);
+					}
+				}
+			});
+			return;
+		}
 		// process taskTimeOut
 		final java.util.concurrent.ScheduledFuture timeOutResponseFuture;
 		timeOutResponseFuture = procTaskTimeOut(ctx, out, serverDef, msg);
 		// 在用户线程执行业务逻辑
-		executor.submit(new Runnable() {
+		businessExecutor.submit(new Runnable() {
 			@SuppressWarnings("unchecked")
 			@Override
 			public void run() {
@@ -252,10 +322,18 @@ public class NioProcessor<I> {
 		return new TApplicationException(TApplicationException.INTERNAL_ERROR, desc);
 	}
 
+	private static final TStruct STRUCT_EMPTY = new TStruct("");
+
 	private void writeOut(final NioWriterFlusher ctx, final TProtocol out, final TMessage resultMsg,
 			final TBase _result, int code, String respMsg) throws TException, TTransportException {
 		out.writeMessageBegin(resultMsg);
-		_result.write(out);
+		if (_result != null) {
+			_result.write(out);
+		} else {
+			out.writeStructBegin(STRUCT_EMPTY);
+			out.writeFieldStop();
+			out.writeStructEnd();
+		}
 		out.writeMessageEnd();
 		out.getTransport().flush();
 		ctx.doFlush(code, respMsg);

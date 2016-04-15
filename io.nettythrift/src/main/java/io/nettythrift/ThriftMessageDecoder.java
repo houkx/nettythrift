@@ -51,26 +51,42 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 	}
 
 	private String proxyInfo;
-	private boolean firstTimeDecode = true;
+	private boolean hasParsedProxyInfo;
 	private List<ByteBuf> buflist = new ArrayList<ByteBuf>(8);
+	private boolean notifyNextHandler;
+
+	private void reset() {
+		proxyInfo = null;
+		buflist = new ArrayList<ByteBuf>(8);
+		notifyNextHandler = false;
+		hasParsedProxyInfo = false;
+	}
+
+	@Override
+	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+		logger.debug("channelRead:: msg={}", msg);
+		super.channelRead(ctx, msg);
+	}
 
 	private Object decode(final ChannelHandlerContext ctx, ByteBuf buffer) throws Exception {
 		// return super.decode(ctx, in);
 		if (!buffer.isReadable()) {
 			return null;
 		}
-		
-		buflist.add(buffer.retain());
-		if (firstTimeDecode) {
-			firstTimeDecode = false;
+		if (!hasParsedProxyInfo) {
+			hasParsedProxyInfo = true;
 			if (proxyHandler != null) {
 				proxyInfo = proxyHandler.getHeadProxyInfo(buffer);
 				if (!buffer.isReadable()) {
 					return null;
 				}
 			}
+		}
+
+		buflist.add(buffer.retain());
+		if (buflist.size() == 1) {
 			short firstByte = buffer.getUnsignedByte(0);
-			logger.debug("[{}]:: decode():firstByte = {},len={}", this, firstByte, buffer.readableBytes());
+			logger.debug("[{}]:: decode():firstByte = {},len={}", this+"-"+ctx.channel(), firstByte, buffer.readableBytes());
 			if (firstByte == 80) {
 				logger.debug("httpRequest from program.");
 				notifyHttpDecoder(ctx, buffer, proxyInfo, true);
@@ -104,7 +120,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 						.setProxyInfo(proxyInfo);
 			}
 		}
-		logger.debug("[{}]:: decode(): len={}", this, buffer.readableBytes());
+		logger.debug("[{}]:: decode(): len={}", this+"-"+ctx.channel(), buffer.readableBytes());
 		ctx.fireChannelRead(buffer);
 		return null;
 	}
@@ -142,16 +158,15 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		return msg;
 	}
 
-	private boolean notifyNextHandler;
-
 	@Override
 	public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-		logger.debug("[{}]:: channelReadComplete(): bufCount={}", this,buflist.size());
+		logger.debug("[@{}]:: channelReadComplete(): bufCount={}", hashCode()+"-"+ctx.channel(), buflist.size());
 		super.channelReadComplete(ctx);
 		if (notifyNextHandler && buflist.size() > 1) {
 			ByteBuf totalBuf = Unpooled.wrappedBuffer(buflist.toArray(new ByteBuf[0]));
 			ctx.fireChannelRead(totalBuf);
 		}
+		reset();
 	}
 
 	private void notifyHttpDecoder(ChannelHandlerContext ch, ByteBuf buffer, String proxyInfo, boolean fromProgram) {
