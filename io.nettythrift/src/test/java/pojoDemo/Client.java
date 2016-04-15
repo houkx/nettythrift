@@ -39,7 +39,6 @@ public class Client extends CommonClient {
 	protected void doOnChannelFuture(ChannelFuture f) {
 		Request firstReq = new Request();
 		firstReq.setId(new Random().nextInt(100));
-		f.channel().write(firstReq);
-		 f.channel().flush();
+		f.channel().writeAndFlush(firstReq);
 	}
 }
