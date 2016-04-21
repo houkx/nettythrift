@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.thrift.ProcessFunction;
@@ -65,7 +64,6 @@ public class NioProcessor<I> {
 	private final ExecutorService voidMethodExecutor;
 	private final HashMap<Object, TProtocolFactory> protocolFactoryMap = new HashMap<Object, TProtocolFactory>(8);
 	private Map<String, Boolean> voidReturnMethods = Collections.emptyMap();
-
 	/**
 	 * NioProcessor 构造方法--1
 	 * <p>
@@ -75,7 +73,7 @@ public class NioProcessor<I> {
 	 * @param executor
 	 */
 	public NioProcessor(TBaseProcessor<I> targetProcessor, ExecutorService executor) {
-		this(targetProcessor, executor, true, Executors.newSingleThreadExecutor());
+		this(targetProcessor, executor, true, executor);
 	}
 
 	/**
@@ -103,13 +101,9 @@ public class NioProcessor<I> {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		TProtocolFactory f = new TBinaryProtocol.Factory();
-		protocolFactoryMap.put(0x80, f);
-		protocolFactoryMap.put((byte)0x80, f);
-		f = new TCompactProtocol.Factory();
-		protocolFactoryMap.put(0x82, f);
-		protocolFactoryMap.put((byte)0x82, f);
-		protocolFactoryMap.put(91, new TJSONProtocol.Factory());
+		protocolFactoryMap.put((byte)0x80, new TBinaryProtocol.Factory());
+		protocolFactoryMap.put((byte)0x82, new TCompactProtocol.Factory());
+		protocolFactoryMap.put((byte)91, new TJSONProtocol.Factory());
 		Class<?>[] ifcs = iface.getClass().getInterfaces();
 		Class ifaceClass = null;
 		for (Class c : ifcs) {
@@ -131,7 +125,7 @@ public class NioProcessor<I> {
 		} else {
 			LOGGER.debug(" ifaceClass = {}", ifaceClass);
 		}
-		protocolFactoryMap.put(92, new SimpleJSONProtocol.Factory(ifaceClass));
+		protocolFactoryMap.put((byte)92, new SimpleJSONProtocol.Factory(ifaceClass));
 	}
 
 	TProtocolFactory getProtocolFactory(ByteBuf buf) throws TException {

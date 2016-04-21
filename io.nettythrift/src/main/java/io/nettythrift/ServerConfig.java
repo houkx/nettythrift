@@ -20,8 +20,9 @@ public final class ServerConfig {
 	private NioProcessor processor;
 	private long taskTimeoutMillis;
 	private int maxFrameLength = Integer.MAX_VALUE;
-   private ProxyHandler proxyHandler;
-   
+	private ProxyHandler proxyHandler;
+	private HttpResourceHandler httpResourceHandler = new HttpFileResourceHandler();
+
 	public <I> ServerConfig(TBaseProcessor<I> processor) {
 		this.processor = new NioProcessor<I>(processor, Executors.newCachedThreadPool());
 	}
@@ -50,6 +51,15 @@ public final class ServerConfig {
 	public ServerConfig setProcessor(NioProcessor processor) {
 		this.processor = processor;
 		return this;
+	}
+
+	public ServerConfig setHttpResourceHandler(HttpResourceHandler httpResourceHandler) {
+		this.httpResourceHandler = httpResourceHandler;
+		return this;
+	}
+
+	public HttpResourceHandler getHttpResourceHandler() {
+		return httpResourceHandler;
 	}
 
 	public long getTaskTimeoutMillis() {

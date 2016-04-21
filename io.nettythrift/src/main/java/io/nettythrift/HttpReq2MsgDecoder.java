@@ -20,7 +20,7 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 	private static Logger logger = LoggerFactory.getLogger(HttpReq2MsgDecoder.class);
 	private final String proxyInfo;
 	private final ServerConfig serverDef;
-    private final boolean fromProgram;
+	private final boolean fromProgram;
 
 	public HttpReq2MsgDecoder(ServerConfig serverDef, String proxyInfo, boolean fromProgram) {
 		this.proxyInfo = proxyInfo;
@@ -58,13 +58,29 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 			content = msg.retain().content();
 		} else {
 			queryStr = URLDecoder.decode(queryStr, "UTF-8");
+			int strLen = queryStr.length();
+			if (queryStr.charAt(0) != '[' && strLen > 5) {
+                boolean wordOrLetter = Character.isLetterOrDigit(queryStr.charAt(strLen - 1));
+				for (int i = 2, MAX = Math.min(strLen, 7); i < MAX; i++) {
+					char c = queryStr.charAt(strLen - i);
+					if (c == '.') {
+						if (wordOrLetter) {
+							serverDef.getHttpResourceHandler().process(ctx, msg, queryStr,strLen - i);
+							return;
+						}
+						break;
+					}else if(wordOrLetter && !Character.isLetterOrDigit(c)){
+						wordOrLetter = false;
+					}
+				}
+			}
 			byte[] bytes = queryStr.getBytes();
 			// System.err.println("URI: bytes[0] = "+bytes[0]+", len =
 			// "+bytes.length);
 			content = Unpooled.wrappedBuffer(bytes).retain();
 		}
 		TProtocolFactory factory = serverDef.getProcessor().getProtocolFactory(content);
-		logger.debug("TProtocolFactory = {}",factory);
+		logger.debug("TProtocolFactory = {}", factory);
 		if (factory != null && content.isReadable()) {
 
 			ThriftMessage thriftMessage = new ThriftMessage(content, ThriftTransportType.HTTP)
