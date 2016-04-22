@@ -159,6 +159,7 @@ public class NioProcessor<I> {
 
 	ReadResult read(final NioWriterFlusher ctx, TProtocol in, final TProtocol out, ServerConfig serverDef,
 			String proxyInfo) throws TException {
+		in.reset();
 		final TMessage msg = in.readMessageBegin();
 		final ProcessFunction fn = processMap.get(msg.name);
 		if (fn == null) {
@@ -326,6 +327,7 @@ public class NioProcessor<I> {
 
 	private void writeOut(final NioWriterFlusher ctx, final TProtocol out, final TMessage resultMsg,
 			final TBase _result, int code, String respMsg) throws TException, TTransportException {
+		out.reset();
 		out.writeMessageBegin(resultMsg);
 		if (_result != null) {
 			_result.write(out);

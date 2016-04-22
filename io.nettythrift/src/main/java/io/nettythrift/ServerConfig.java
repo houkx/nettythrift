@@ -5,6 +5,7 @@ package io.nettythrift;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.thrift.TBaseProcessor;
 
@@ -22,6 +23,7 @@ public final class ServerConfig {
 	private int maxFrameLength = Integer.MAX_VALUE;
 	private ProxyHandler proxyHandler;
 	private HttpResourceHandler httpResourceHandler = new HttpFileResourceHandler();
+	private long idleTimeMills = TimeUnit.MINUTES.toMillis(1);
 
 	public <I> ServerConfig(TBaseProcessor<I> processor) {
 		this.processor = new NioProcessor<I>(processor, Executors.newCachedThreadPool());
@@ -55,6 +57,15 @@ public final class ServerConfig {
 
 	public ServerConfig setHttpResourceHandler(HttpResourceHandler httpResourceHandler) {
 		this.httpResourceHandler = httpResourceHandler;
+		return this;
+	}
+
+	public long getIdleTimeMills() {
+		return idleTimeMills;
+	}
+
+	public ServerConfig setIdleTime(long idleTime, TimeUnit idleTimeUnit) {
+		idleTimeMills = idleTimeUnit.toMillis(idleTime);
 		return this;
 	}
 
