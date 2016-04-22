@@ -1,0 +1,24 @@
+Server started and listen on /0:0:0:0:0:0:0:0:9090
+ThriftMessageDecoder::firstByte = 0
+ThriftServerHandler: channelRead0( message = ThriftMessage [transportType=FRAMED, processStartTimeMillis=0])
+TNiftyTransport::read: offset=0, length=1, bytes=[-126]
+TNiftyTransport::read: offset=0, length=1, bytes=[33]
+TNiftyTransport::read: offset=0, length=1, bytes=[0]
+TNiftyTransport::read: offset=0, length=1, bytes=[3]
+TNiftyTransport::read: offset=0, length=3, bytes=[97, 100, 100]
+TNiftyTransport::read: offset=0, length=1, bytes=[21]
+TNiftyTransport::read: offset=0, length=1, bytes=[4]
+TNiftyTransport::read: offset=0, length=1, bytes=[21]
+TNiftyTransport::read: offset=0, length=1, bytes=[30]
+TNiftyTransport::read: offset=0, length=1, bytes=[0]
+add(2, 15)
+TNiftyTransport::write: offset=0, length=1, bytes=[-126]
+TNiftyTransport::write: offset=0, length=1, bytes=[65]
+TNiftyTransport::write: offset=0, length=1, bytes=[0, 0, 0, 0, 0]
+TNiftyTransport::write: offset=0, length=1, bytes=[3, 0, 0, 0, 0]
+TNiftyTransport::write: offset=0, length=3, bytes=[97, 100, 100]
+TNiftyTransport::write: offset=0, length=1, bytes=[5]
+TNiftyTransport::write: offset=0, length=1, bytes=[0, 0, 0, 0, 0]
+TNiftyTransport::write: offset=0, length=1, bytes=[34, 0, 0, 0, 0]
+TNiftyTransport::write: offset=0, length=1, bytes=[0]
+encode: message = ThriftMessage [transportType=FRAMED, processStartTimeMillis=0], buf.isReadable? true, frameSize=11
