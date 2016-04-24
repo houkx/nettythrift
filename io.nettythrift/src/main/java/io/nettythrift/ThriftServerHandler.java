@@ -46,19 +46,21 @@ public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessa
 
 		@Override
 		public void doFlush(int code, String respMessage) {
-			ThriftMessage msg = message.clone(messageTransport.getOutputBuffer());
-			msg.responseCode = code;
-			msg.responseMessage = respMessage;
-			Object resp = respMessage;
+			Object resp;
 			ChannelFutureListener lis = ChannelFutureListener.CLOSE_ON_FAILURE;
-			if (msg.getTransportType() == ThriftTransportType.HTTP) {
+			if (message.getTransportType() == ThriftTransportType.HTTP) {
 				HttpVersion version = new HttpVersion("HTTP/1.1", false);
-				HttpResponseStatus status = new HttpResponseStatus(msg.fromProgram ? 200 : code, respMessage);
-				DefaultFullHttpResponse httpResp = new DefaultFullHttpResponse(version, status, msg.getBuffer());
+				HttpResponseStatus status = new HttpResponseStatus(message.fromProgram ? 200 : code, respMessage);
+				DefaultFullHttpResponse httpResp = new DefaultFullHttpResponse(version, status, messageTransport.getOutputBuffer());
 				resp = httpResp;
-				if (!msg.connectionKeepAlive || !msg.fromProgram/*浏览器的keep-alive暂时忽略*/) {
+				if (!message.connectionKeepAlive || !message.fromProgram/*浏览器的keep-alive暂时忽略*/) {
 					lis = ChannelFutureListener.CLOSE;
 				}
+			}else{
+				ThriftMessage msg = message.clone(messageTransport.getOutputBuffer());
+				msg.responseCode = code;
+				msg.responseMessage = respMessage;
+				resp = msg;
 			}
 			ctx.writeAndFlush(resp).addListener(lis);
 		}
