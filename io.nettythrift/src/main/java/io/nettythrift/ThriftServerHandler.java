@@ -27,7 +27,7 @@ public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessa
 		this.serverDef = serverDef;
 	}
 
-	class NioWriterFlusherImpl implements NioWriterFlusher {
+	private static class NioWriterFlusherImpl implements NioWriterFlusher {
 		final ChannelHandlerContext ctx;
 		final ThriftMessage message;
 		final TNiftyTransport messageTransport;
