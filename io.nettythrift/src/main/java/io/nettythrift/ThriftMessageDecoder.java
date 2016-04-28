@@ -24,6 +24,8 @@ import io.nettythrift.transport.TNiftyTransport;
 import io.nettythrift.transport.ThriftTransportType;
 
 /**
+ * decode a ByteBuf to ThriftMessage
+ * 
  * @author HouKangxi
  *
  */
@@ -62,7 +64,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 	private boolean ignoreReadcomplete;
 	private int widx = 0, cap = 0;
 	private ByteBuf lastMsg;
-	private int offset = 0, msgLen = 0, ridx = 0;
+	private int offset = 0, msgLen = 0;
 
 	private void reset() {
 		notifyNextHandler = false;
@@ -71,15 +73,8 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		ignoreReadcomplete = false;
 		widx = cap = 0;
 		lastMsg = null;
-		offset = msgLen = ridx = 0;
+		offset = msgLen = 0;
 	}
-
-	// @Override
-	// public void read(ChannelHandlerContext ctx) throws Exception {
-	// logger.trace("**** @{}:: read()", System.identityHashCode(this), new
-	// Exception());
-	// super.read(ctx);
-	// }
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -148,7 +143,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 				// Messages with a zero MSB in the first byte are framed
 				// messages
 				return new ThriftMessage(messageBuffer, ThriftTransportType.FRAMED).setProctocolFactory(factory)
-						.setProxyInfo(proxyInfo);
+						.setProxyInfo(proxyInfo).setConnectionKeepAlive(true);
 			}
 		}
 		logger.debug("[@{}]:: decode(): len={},cap={},widx={}", System.identityHashCode(this), buffer.readableBytes(),
@@ -161,11 +156,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		logger.debug("[@{}]:: channelReadComplete():  notifyNextHandler={}, widx={}, cap={}, active? {}",
 				System.identityHashCode(this), notifyNextHandler, widx, cap, ctx.channel().isActive());
 		super.channelReadComplete(ctx);
-		if (!ctx.channel().isActive()) {
-			reset();
-			return;
-		}
-		if (ignoreReadcomplete) {
+		if (ignoreReadcomplete || !ctx.channel().isActive()) {
 			reset();
 			return;
 		}
@@ -192,7 +183,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 				// Messages with a zero MSB in the first byte are framed
 				// messages
 				ThriftMessage msg = new ThriftMessage(lastMsg, ThriftTransportType.FRAMED).setProctocolFactory(factory)
-						.setProxyInfo(proxyInfo);
+						.setProxyInfo(proxyInfo).setConnectionKeepAlive(true);
 				if (msg != null) {
 					ctx.fireChannelRead(msg);
 				}
@@ -208,7 +199,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		TProtocol in = fac.getProtocol(msgTrans);
 		TProtocol out = in;
 		final ThriftMessage msg = new ThriftMessage(null, ThriftTransportType.UNFRAMED).setProctocolFactory(fac)
-				.setProxyInfo(proxyInfo);
+				.setProxyInfo(proxyInfo).setConnectionKeepAlive(true);
 		msg.readResult = serverDef.getProcessor().read(new NioWriterFlusher() {
 			@Override
 			public ThriftTransportType transportType() {
@@ -279,20 +270,15 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			notifyNextHandler = true;
 			offset = messageContentsOffset;
 			msgLen = messageContentsLength;
-			ridx = messageStartReaderIndex + messageLength;
 			logger.error("*** buffer.readableBytes() = {}, but messageLength={}", buffer.readableBytes(),
 					messageLength);
 			// Full message isn't available yet, return nothing for now
 			return null;
 		} else {
 			// Full message is available, return it
-			ByteBuf messageBuffer = extractFrame(ctx, buffer, messageContentsOffset, messageContentsLength);
+			ByteBuf messageBuffer = buffer.slice(messageContentsOffset, messageContentsLength).retain();
 			buffer.readerIndex(messageStartReaderIndex + messageLength);
 			return messageBuffer;
 		}
-	}
-
-	protected ByteBuf extractFrame(ChannelHandlerContext ctx, ByteBuf buffer, int index, int length) {
-		return buffer.slice(index, length).retain();
 	}
 }
