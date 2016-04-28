@@ -164,18 +164,19 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			if (isHttp) {
 				// ByteBuf totalBuf = Unpooled.wrappedBuffer(buflist.toArray(new
 				// ByteBuf[0]));
-				ByteBuf totalBuf = lastMsg;
-				ctx.fireChannelRead(totalBuf);
+				ctx.fireChannelRead(lastMsg);
 			} else if (unframe) {
 				// ByteBuf totalBuf = Unpooled.wrappedBuffer(buflist.toArray(new
 				// ByteBuf[0]));
-				ByteBuf totalBuf = lastMsg;
-				Object msg = directReadUnframedMessage(ctx, totalBuf, fac);
+				Object msg = directReadUnframedMessage(ctx, lastMsg, fac);
 				logger.debug("[@{}]:: channelReadComplete(): unframe msg={}", System.identityHashCode(this), msg);
 				if (msg != null) {
 					ctx.fireChannelRead(msg);
 				}
 			} else {
+				if (offset > lastMsg.capacity() - msgLen) {
+					return;
+				}
 				lastMsg = lastMsg.slice(offset, msgLen).retain();
 				TProtocolFactory factory = serverDef.getProcessor().getProtocolFactory(lastMsg);
 				logger.debug("[@{}]:: channelReadComplete(): TTProtocolFactory = {} when FramedMessage ",
