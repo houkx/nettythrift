@@ -5,6 +5,7 @@ package io.nettythrift;
 
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
@@ -20,6 +21,7 @@ import io.netty.handler.codec.TooLongFrameException;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.util.concurrent.ScheduledFuture;
 import io.nettythrift.transport.TNiftyTransport;
 import io.nettythrift.transport.ThriftTransportType;
 
@@ -65,6 +67,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 	private int widx = 0, cap = 0;
 	private ByteBuf lastMsg;
 	private int offset = 0, msgLen = 0;
+	private ScheduledFuture<?> readTaskFuture;
 
 	private void reset() {
 		notifyNextHandler = false;
@@ -78,6 +81,9 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+		if (readTaskFuture != null) {
+			readTaskFuture.cancel(true);
+		}
 		if (msg instanceof ByteBuf) {
 			ByteBuf buffer = (ByteBuf) msg;
 			widx = buffer.writerIndex();
@@ -147,12 +153,17 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			}
 		}
 		logger.debug("[@{}]:: decode(): len={},cap={},widx={}", System.identityHashCode(this), buffer.readableBytes(),
-				buffer.capacity(), buffer.writerIndex());
+				cap, widx);
 		return null;
 	}
 
+	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+		logger.debug("[@{}]:: channelInactive()", System.identityHashCode(this));
+		super.channelInactive(ctx);
+	}
+
 	@Override
-	public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+	public void channelReadComplete(final ChannelHandlerContext ctx) throws Exception {
 		logger.debug("[@{}]:: channelReadComplete():  notifyNextHandler={}, widx={}, cap={}, active? {}",
 				System.identityHashCode(this), notifyNextHandler, widx, cap, ctx.channel().isActive());
 		super.channelReadComplete(ctx);
@@ -160,18 +171,42 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			reset();
 			return;
 		}
-		if (notifyNextHandler && widx != cap && lastMsg != null) {
+		if (notifyNextHandler && lastMsg != null && cap > 0) {
 			if (isHttp) {
-				// ByteBuf totalBuf = Unpooled.wrappedBuffer(buflist.toArray(new
-				// ByteBuf[0]));
-				ctx.fireChannelRead(lastMsg);
+				if (widx != cap) {
+					ctx.fireChannelRead(lastMsg);
+				} else {
+					readTaskFuture = ctx.executor().schedule(new Runnable() {
+						public void run() {
+							ctx.fireChannelRead(lastMsg);
+						}
+					}, 10, TimeUnit.MILLISECONDS);
+					return;
+				}
 			} else if (unframe) {
-				// ByteBuf totalBuf = Unpooled.wrappedBuffer(buflist.toArray(new
-				// ByteBuf[0]));
-				Object msg = directReadUnframedMessage(ctx, lastMsg, fac);
-				logger.debug("[@{}]:: channelReadComplete(): unframe msg={}", System.identityHashCode(this), msg);
-				if (msg != null) {
-					ctx.fireChannelRead(msg);
+				if (widx != cap) {
+					Object msg = directReadUnframedMessage(ctx, lastMsg, fac);
+					logger.debug("[@{}]:: channelReadComplete(): unframe msg={}", System.identityHashCode(this), msg);
+					if (msg != null) {
+						ctx.fireChannelRead(msg);
+					}
+				} else {
+					readTaskFuture = ctx.executor().schedule(new Runnable() {
+						public void run() {
+							Object msg = null;
+							try {
+								msg = directReadUnframedMessage(ctx, lastMsg, fac);
+							} catch (TException e) {
+								e.printStackTrace();
+							}
+							logger.debug("[@{}]::channelReadComplete():unframedMsg={}", System.identityHashCode(ThriftMessageDecoder.this),
+									msg);
+							if (msg != null) {
+								ctx.fireChannelRead(msg);
+							}
+						}
+					}, 10, TimeUnit.MILLISECONDS);
+					return;
 				}
 			} else {
 				if (offset > lastMsg.capacity() - msgLen) {
@@ -190,8 +225,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 				}
 			}
 		}
-		if (widx != cap)
-			reset();
+		reset();
 	}
 
 	private Object directReadUnframedMessage(final ChannelHandlerContext ctx, ByteBuf buffer, TProtocolFactory fac)
