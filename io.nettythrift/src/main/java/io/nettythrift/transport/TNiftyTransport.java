@@ -19,7 +19,7 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
 
 /**
@@ -44,10 +44,9 @@ public class TNiftyTransport extends TTransport {
 		this.channel = channel;
 		this.in = in;
 		// this.out = ByteBufs.dynamicBuffer(DEFAULT_OUTPUT_BUFFER_SIZE);
-		// if ((mod & MOD_W) == MOD_W){
-		// this.out = Unpooled.buffer(DEFAULT_OUTPUT_BUFFER_SIZE / 2,
-		// DEFAULT_OUTPUT_BUFFER_SIZE);
-		// }
+//		if ((mod & MOD_W) == MOD_W) {
+			this.out = PooledByteBufAllocator.DEFAULT.directBuffer(DEFAULT_OUTPUT_BUFFER_SIZE);
+//		}
 
 		this.initialReaderIndex = in != null ? in.readerIndex() : 0;
 		if (in != null) {
@@ -126,12 +125,6 @@ public class TNiftyTransport extends TTransport {
 
 	@Override
 	public void write(byte[] bytes, int offset, int length) throws TTransportException {
-		// System.out.printf(getClass().getSimpleName() + "::write: offset=%d,
-		// length=%d, bytes=%s\n", offset, length,
-		// Arrays.toString(bytes));
-		if (out == null) {
-			out = Unpooled.buffer(DEFAULT_OUTPUT_BUFFER_SIZE, Integer.MAX_VALUE);
-		}
 		out.writeBytes(bytes, offset, length);
 	}
 

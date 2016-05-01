@@ -209,7 +209,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 					return;
 				}
 			} else {
-				if (offset > lastMsg.capacity() - msgLen) {
+				if (offset > lastMsg.readableBytes() - msgLen) {
 					return;
 				}
 				lastMsg = lastMsg.slice(offset, msgLen).retain();
