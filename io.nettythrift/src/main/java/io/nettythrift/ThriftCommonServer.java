@@ -104,7 +104,9 @@ public class ThriftCommonServer extends CommonServer implements Runnable {
 		@Override
 		public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
 //			logger.debug("*** channelUnregistered");
-			idleFuture.cancel(false);
+			if (idleFuture != null) {
+				idleFuture.cancel(false);
+			}
 			allChannels.remove(ctx.channel());
 			super.channelUnregistered(ctx);
 		}
