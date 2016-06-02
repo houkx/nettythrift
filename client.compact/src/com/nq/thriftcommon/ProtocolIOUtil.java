@@ -22,16 +22,68 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.nq.thriftcommon.annotaion.Index;
 
 /**
+ * Protocol读写工具类
  * 
  * @author HouKangxi
  *
  */
-class ProtocolWriter {
+class ProtocolIOUtil {
+	public static <T> T read(TCompactProtocol reader, Type resultBeanClass, Class<?>[] exceptionsTypes, int seqid_)
+			throws Throwable {
+		Object[] msg = reader.readMessageBegin();
+		String methodName = (String) msg[0];
+		int type = ((Number) msg[1]).intValue();
+		int seqid = ((Number) msg[2]).intValue();
+		if (type == 3) {
+			TApplicationException x = TApplicationException.read(reader);
+			reader.readMessageEnd();
+			throw x;
+		}
+		// 验证seqId 与请求的是否相同
+		if (seqid != seqid_) {
+			throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID,
+					methodName + " failed: out of sequence response");
+		}
+		// -- read Struct_result START --
+		reader.readStructBegin();
+		int field = reader.readFieldBegin();
+		int fieldType = ((field >> 16) & 0x0000ffff);
+		short fieldId = (short) (field & 0x0000ffff);
+		if (fieldId == 0) {
+			H h = ProtocolIOUtil.getH(fieldType);
+			@SuppressWarnings("unchecked")
+			T bean = (T) h.read(reader, resultBeanClass);
+			reader.readFieldEnd();
 
-	private ProtocolWriter() {
+			reader.readStructEnd();
+			// -- read Struct_result END --
+
+			reader.readMessageEnd();
+			//
+			return bean;
+		} else if (exceptionsTypes != null && exceptionsTypes.length > 0) {
+			Throwable ex = null;
+			if (fieldType != 0 && fieldId < exceptionsTypes.length) {
+				Class<?> exClass = exceptionsTypes[fieldId - 1];
+				H h = ProtocolIOUtil.getH(fieldType);
+				if (h != null) {
+					Object oex = h.read(reader, exClass);
+					if (oex instanceof Throwable) {
+						ex = (Throwable) oex;
+					}
+				}
+			}
+			reader.readFieldEnd();
+			reader.readStructEnd();
+			reader.readMessageEnd();
+			if (ex != null) {
+				throw ex;
+			}
+		}
+		return null;
 	}
 
-	public static void write(String methodName, int seqid, TProtocol writer, Type[] parmTypes, Object[] args)
+	public static void write(String methodName, int seqid, TCompactProtocol writer, Type[] parmTypes, Object[] args)
 			throws Exception {
 		writer.writeMessageBegin(methodName, (byte) 1, seqid);
 		//
@@ -63,7 +115,7 @@ class ProtocolWriter {
 			type = (byte) t;
 		}
 
-		void write(TProtocol writer, Type _t, Object bean) throws Exception {
+		void write(TCompactProtocol writer, Type _t, Object bean) throws Exception {
 			Class<?> beanClass = (Class<?>) _t;
 			writer.writeStructBegin();
 			if (bean != null) {
@@ -87,7 +139,7 @@ class ProtocolWriter {
 		}
 
 		@SuppressWarnings("rawtypes")
-		Object read(TProtocol reader, Type beanType) throws Exception {
+		Object read(TCompactProtocol reader, Type beanType) throws Exception {
 			//
 			Object bean = null;
 			Class beanClass = (Class) beanType;
@@ -99,7 +151,7 @@ class ProtocolWriter {
 			if (bean == null) {
 				return null;
 			}
-			Field[] fs = ProtocolWriter.sortFields(beanClass);
+			Field[] fs = ProtocolIOUtil.sortFields(beanClass);
 			reader.readStructBegin();
 			while (true) {
 				int field = reader.readFieldBegin();
@@ -108,7 +160,7 @@ class ProtocolWriter {
 				if (fieldType != 0 && fieldId <= fs.length) {
 					// normal
 					Field f = fs[fieldId - 1];
-					H h = ProtocolWriter.getH(fieldType);
+					H h = ProtocolIOUtil.getH(fieldType);
 					Object v = h.read(reader, f.getGenericType());
 					if (v != null) {
 						try {
@@ -136,8 +188,8 @@ class ProtocolWriter {
 		// }
 	}
 
-	static void skip(TProtocol reader, int fieldType) {
-		H h = ProtocolWriter.getH(fieldType);
+	static void skip(TCompactProtocol reader, int fieldType) {
+		H h = ProtocolIOUtil.getH(fieldType);
 		try {
 			h.read(reader, h.jType);
 			reader.readFieldEnd();
@@ -265,11 +317,11 @@ class ProtocolWriter {
 			}
 
 			@Override
-			void write(TProtocol writer, Type _t, Object bean) throws Exception {
+			void write(TCompactProtocol writer, Type _t, Object bean) throws Exception {
 			}
 
 			@Override
-			Object read(TProtocol reader, Type beanType) throws Exception {
+			Object read(TCompactProtocol reader, Type beanType) throws Exception {
 				return null;
 			}
 		});
@@ -278,12 +330,12 @@ class ProtocolWriter {
 				class2type.put(Boolean.class, this);
 			}
 
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				writer.writeBool((Boolean) v);
 			}
 
 			@Override
-			Object read(TProtocol reader, Type beanType) throws Exception {
+			Object read(TCompactProtocol reader, Type beanType) throws Exception {
 				return (reader.readBool());
 			}
 		});
@@ -292,11 +344,11 @@ class ProtocolWriter {
 				class2type.put(Byte.class, this);
 			}
 
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				writer.writeByte((Byte) v);
 			}
 
-			Object read(TProtocol reader, Type beanType) throws Exception {
+			Object read(TCompactProtocol reader, Type beanType) throws Exception {
 				return (reader.readByte());
 			}
 		});
@@ -305,11 +357,11 @@ class ProtocolWriter {
 				class2type.put(Double.class, this);
 			}
 
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				writer.writeDouble((Double) v);
 			}
 
-			Object read(TProtocol reader, Type beanType) throws Exception {
+			Object read(TCompactProtocol reader, Type beanType) throws Exception {
 				return (reader.readDouble());
 			}
 		});
@@ -318,11 +370,11 @@ class ProtocolWriter {
 				class2type.put(Short.class, this);
 			}
 
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				writer.writeI16((Short) v);
 			}
 
-			Object read(TProtocol reader, Type beanType) throws Exception {
+			Object read(TCompactProtocol reader, Type beanType) throws Exception {
 				return (reader.readI16());
 			}
 		});
@@ -331,11 +383,11 @@ class ProtocolWriter {
 				class2type.put(Integer.class, this);
 			}
 
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				writer.writeI32((Integer) v);
 			}
 
-			Object read(TProtocol reader, Type beanType) throws Exception {
+			Object read(TCompactProtocol reader, Type beanType) throws Exception {
 				return (reader.readI32());
 			}
 		});
@@ -344,11 +396,11 @@ class ProtocolWriter {
 				class2type.put(Long.class, this);
 			}
 
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				writer.writeI64((Long) v);
 			}
 
-			Object read(TProtocol reader, Type beanType) throws Exception {
+			Object read(TCompactProtocol reader, Type beanType) throws Exception {
 				return (reader.readI64());
 			}
 		});
@@ -357,7 +409,7 @@ class ProtocolWriter {
 				class2type.put(ByteBuffer.class, this);
 			}
 
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				if (v == null) {
 					return;
 				}
@@ -368,20 +420,21 @@ class ProtocolWriter {
 				}
 			}
 
-			Object read(TProtocol reader, Type beanType) throws Exception {
+			Object read(TCompactProtocol reader, Type beanType) throws Exception {
 				return beanType == String.class ? reader.readString() : reader.readBinary();
 			}
 		});
 		//
 		put(Map.class, new H(13) {
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				ParameterizedType ptype = (ParameterizedType) t;
 				Type[] argtypes = ptype.getActualTypeArguments();
 				H k_h = getH(argtypes[0]);
 				H v_h = getH(argtypes[1]);
 				@SuppressWarnings("rawtypes")
 				Map<?, ?> _map = (Map) v;
-				writer.writeMapBegin(new int[] { k_h.type, v_h.type, _map.size() });
+				long typeLong = (((long) k_h.type) << 40) | (((long) v_h.type) << 32) | _map.size();
+				writer.writeMapBegin(typeLong);
 				for (Map.Entry<?, ?> entry : _map.entrySet()) {
 					k_h.write(writer, argtypes[0], entry.getKey());
 					v_h.write(writer, argtypes[1], entry.getValue());
@@ -390,15 +443,15 @@ class ProtocolWriter {
 			}
 
 			@Override
-			Object read(TProtocol reader, Type t) throws Exception {
+			Object read(TCompactProtocol reader, Type t) throws Exception {
 				ParameterizedType ptype = (ParameterizedType) t;
 				Type[] argtypes = ptype.getActualTypeArguments();
 				H kh = getH(argtypes[0]);
 				H vh = getH(argtypes[1]);
-				int[] rs = reader.readMapBegin();
-//				int kType = rs[0];
-//				int vType = rs[1];
-				int size = rs[2];
+				long rs = reader.readMapBegin();
+				// int kType = rs[0];
+				// int vType = rs[1];
+				int size = (int) (rs & 0xFFFFFFFF);
 				HashMap<Object, Object> map = new HashMap<Object, Object>(size);
 				for (int i = 0; i < size; i++) {
 					Object key = kh.read(reader, argtypes[0]);
@@ -410,25 +463,26 @@ class ProtocolWriter {
 			}
 		});
 		put(Set.class, new H(14) {
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				ParameterizedType ptype = (ParameterizedType) t;
 				Type[] argtypes = ptype.getActualTypeArguments();
 				H et = getH(argtypes[0]);
 				@SuppressWarnings("rawtypes")
 				Set<?> set = (Set) v;
-				writer.writeListBegin(new int[] { et.type, set.size() });
+				long typeLong = (((long) et.type) << 32) | set.size();
+				writer.writeSetBegin(typeLong);
 				for (Object eo : set) {
 					et.write(writer, argtypes[0], eo);
 				}
-				writer.writeListEnd();
+				writer.writeSetEnd();
 			}
 
 			@Override
-			Object read(TProtocol reader, Type t) throws Exception {
-				int[] rs = reader.readSetBegin();
+			Object read(TCompactProtocol reader, Type t) throws Exception {
+				long rs = reader.readSetBegin();
 				ParameterizedType ptype = (ParameterizedType) t;
 				Type[] argtypes = ptype.getActualTypeArguments();
-				int size = rs[1];
+				int size = (int) (rs & 0xFFFFFFFF);
 				HashSet<Object> set = new HashSet<Object>(size);
 				H et = getH(argtypes[0]);
 				for (int i = 0; i < size; i++) {
@@ -439,13 +493,14 @@ class ProtocolWriter {
 			}
 		});
 		put(List.class, new H(15) {
-			void write(TProtocol writer, Type t, Object v) throws Exception {
+			void write(TCompactProtocol writer, Type t, Object v) throws Exception {
 				ParameterizedType ptype = (ParameterizedType) t;
 				Type[] argtypes = ptype.getActualTypeArguments();
 				H et = getH(argtypes[0]);
 				@SuppressWarnings("rawtypes")
 				List<?> list = (List) v;
-				writer.writeListBegin(new int[] { et.type, list.size() });
+				long typeLong = (((long) et.type) << 32) | list.size();
+				writer.writeListBegin(typeLong);
 				for (Object eo : list) {
 					et.write(writer, argtypes[0], eo);
 				}
@@ -453,11 +508,11 @@ class ProtocolWriter {
 			}
 
 			@Override
-			Object read(TProtocol reader, Type t) throws Exception {
-				int[] rs = reader.readListBegin();
+			Object read(TCompactProtocol reader, Type t) throws Exception {
+				long rs = reader.readListBegin();
 				ParameterizedType ptype = (ParameterizedType) t;
 				Type[] argtypes = ptype.getActualTypeArguments();
-				int size = rs[1];
+				int size = (int) (rs & 0xFFFFFFFF);
 				ArrayList<Object> list = new ArrayList<Object>(size);
 				H et = getH(argtypes[0]);
 				for (int i = 0; i < size; i++) {

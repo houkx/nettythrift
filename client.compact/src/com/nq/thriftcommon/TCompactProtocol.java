@@ -34,24 +34,24 @@ import java.nio.ByteBuffer;
  * nested structures, short strings and collections, and low-value i32 and i64
  * fields you have, the more benefit you'll see.
  */
-final class TCompactProtocol extends TProtocol {
+final class TCompactProtocol {
 
 	private final static byte[] ttypeToCompactType = new byte[16];
 
-//	private final static class Types {
-		public static final byte BOOLEAN_TRUE = 0x01;
-		public static final byte BOOLEAN_FALSE = 0x02;
-		// public static final byte BYTE = 0x03;
-		// public static final byte I16 = 0x04;
-		// public static final byte I32 = 0x05;
-		// public static final byte I64 = 0x06;
-		// public static final byte DOUBLE = 0x07;
-		// public static final byte BINARY = 0x08;
-		// public static final byte LIST = 0x09;
-		// public static final byte SET = 0x0A;
-		// public static final byte MAP = 0x0B;
-		// public static final byte STRUCT = 0x0C;
-//	}
+	// private final static class Types {
+	public static final byte BOOLEAN_TRUE = 0x01;
+	public static final byte BOOLEAN_FALSE = 0x02;
+	// public static final byte BYTE = 0x03;
+	// public static final byte I16 = 0x04;
+	// public static final byte I32 = 0x05;
+	// public static final byte I64 = 0x06;
+	// public static final byte DOUBLE = 0x07;
+	// public static final byte BINARY = 0x08;
+	// public static final byte LIST = 0x09;
+	// public static final byte SET = 0x0A;
+	// public static final byte MAP = 0x0B;
+	// public static final byte STRUCT = 0x0C;
+	// }
 
 	static {
 		ttypeToCompactType[0] = 0;
@@ -235,11 +235,13 @@ final class TCompactProtocol extends TProtocol {
 	 * and value type. This means that 0-length maps will yield TMaps without
 	 * the "correct" types.
 	 */
-	public int[] readMapBegin() throws Exception {
+	public long readMapBegin() throws Exception {
 		int size = readVarint32();
 		checkContainerReadLength(size);
 		byte keyAndValueType = size == 0 ? 0 : readByte();
-		return new int[] { getTType((byte) (keyAndValueType >> 4)), getTType((byte) (keyAndValueType & 0xf)), size };
+		long kt = getTType((byte) (keyAndValueType >> 4));
+		long vt = getTType((byte) (keyAndValueType & 0xf));
+		return (kt << 40) | (vt << 32) | size;
 	}
 
 	/**
@@ -248,7 +250,7 @@ final class TCompactProtocol extends TProtocol {
 	 * of the element type header will be 0xF, and a varint will follow with the
 	 * true size.
 	 */
-	public int[] readListBegin() throws Exception {
+	public long readListBegin() throws Exception {
 		byte size_and_type = readByte();
 		int size = (size_and_type >> 4) & 0x0f;
 		if (size == 15) {
@@ -256,7 +258,7 @@ final class TCompactProtocol extends TProtocol {
 		}
 		checkContainerReadLength(size);
 		byte type = getTType(size_and_type);
-		return new int[] { type, size };
+		return (((long) type) << 32) | size;
 	}
 
 	/**
@@ -265,7 +267,7 @@ final class TCompactProtocol extends TProtocol {
 	 * the element type header will be 0xF, and a varint will follow with the
 	 * true size.
 	 */
-	public int[] readSetBegin() throws Exception {
+	public long readSetBegin() throws Exception {
 		return readListBegin();
 	}
 
@@ -583,13 +585,13 @@ final class TCompactProtocol extends TProtocol {
 	 * Write a map header. If the map is empty, omit the key and value type
 	 * headers, as we don't need any additional information to skip it.
 	 */
-	public void writeMapBegin(int[] map) throws Exception {
-		int mapSize = map[2];
+	public void writeMapBegin(long map) throws Exception {
+		int mapSize = (int) (map & 0xFFFFFFFF);
 		if (mapSize == 0) {
 			writeByteDirect(0);
 		} else {
-			byte keyType = (byte) map[0];
-			byte valueType = (byte) map[1];
+			byte keyType = (byte) (((byte) (map >> 40) & 0xFF));
+			byte valueType = (byte) (((byte) (map >> 32) & 0xFF));
 			writeVarint32(mapSize);
 			writeByteDirect(getCompactType(keyType) << 4 | getCompactType(valueType));
 		}
@@ -598,15 +600,17 @@ final class TCompactProtocol extends TProtocol {
 	/**
 	 * Write a list header.
 	 */
-	public void writeListBegin(int[] list) throws Exception {
-		writeCollectionBegin((byte) list[0], list[1]);
+	public void writeListBegin(long list) throws Exception {
+		byte elemType = (byte) (((byte) (list >> 32)) & 0xFF);
+		int size = (int) (list & 0xFFFFFFFF);
+		writeCollectionBegin(elemType, size);
 	}
 
 	/**
 	 * Write a set header.
 	 */
-	public void writeSetBegin(int[] set) throws Exception {
-		writeCollectionBegin((byte) set[0], set[1]);
+	public void writeSetBegin(long set) throws Exception {
+		writeListBegin(set);
 	}
 
 	/**
@@ -832,3 +836,60 @@ final class TCompactProtocol extends TProtocol {
 	}
 
 }
+class ShortStack {
+
+	  private short[] vector;
+	  private int top = -1;
+
+	  public ShortStack(int initialCapacity) {
+	    vector = new short[initialCapacity];
+	  }
+
+	  public short pop() {
+	    return vector[top--];
+	  }
+
+	  public void push(short pushed) {
+	    if (vector.length == top + 1) {
+	      grow();
+	    }
+	    vector[++top] = pushed;
+	  }
+
+	  private void grow() {
+	    short[] newVector = new short[vector.length * 2];
+	    System.arraycopy(vector, 0, newVector, 0, vector.length);
+	    vector = newVector;
+	  }
+
+	  public short peek() {
+	    return vector[top];
+	  }
+
+	  public void clear() {
+	    top = -1;
+	  }
+
+	//  @Override
+	//  public String toString() {
+//	    StringBuilder sb = new StringBuilder();
+//	    sb.append("<ShortStack vector:[");
+//	    for (int i = 0; i < vector.length; i++) {
+//	      if (i != 0) {
+//	        sb.append(" ");
+//	      }
+	//
+//	      if (i == top) {
+//	        sb.append(">>");
+//	      }
+	//
+//	      sb.append(vector[i]);
+	//
+//	      if (i == top) {
+//	        sb.append("<<");
+//	      }
+//	    }
+//	    sb.append("]>");
+//	    return sb.toString();
+	//  }
+	}

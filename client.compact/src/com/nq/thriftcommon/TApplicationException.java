@@ -67,7 +67,7 @@ public class TApplicationException extends Exception {
 		return type_;
 	}
 
-	static TApplicationException read(TProtocol iprot) throws Exception {
+	static TApplicationException read(TCompactProtocol iprot) throws Exception {
 		int field;
 		iprot.readStructBegin();
 
@@ -86,18 +86,18 @@ public class TApplicationException extends Exception {
 				if (fieldType == 11) {
 					message = iprot.readString();
 				} else {
-					ProtocolWriter.skip(iprot, fieldType);
+					ProtocolIOUtil.skip(iprot, fieldType);
 				}
 				break;
 			case 2:
 				if (fieldType == 8) {
 					type = iprot.readI32();
 				} else {
-					ProtocolWriter.skip(iprot, fieldType);
+					ProtocolIOUtil.skip(iprot, fieldType);
 				}
 				break;
 			default:
-				ProtocolWriter.skip(iprot, fieldType);
+				ProtocolIOUtil.skip(iprot, fieldType);
 				break;
 			}
 			iprot.readFieldEnd();

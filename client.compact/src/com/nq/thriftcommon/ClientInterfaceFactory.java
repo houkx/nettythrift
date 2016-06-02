@@ -101,18 +101,18 @@ public class ClientInterfaceFactory {
 			ByteArrayOutputStream outbuff = new ByteArrayOutputStream();
 			TCompactProtocol protocol = new TCompactProtocol(outbuff, null);
 
-			ProtocolWriter.write(methodName, seqId, protocol, method.getGenericParameterTypes(), args);
+			ProtocolIOUtil.write(methodName, seqId, protocol, method.getGenericParameterTypes(), args);
 			Socket connection = null;
 			Object rs = null;
 			try {
-				connection = factory.createSocket(methodName, method.getReturnType()==void.class?-1:0);
+				connection = factory.createSocket();
 				OutputStream out = connection.getOutputStream();
 				out.write(outbuff.toByteArray());
 				out.flush();
 				InputStream in = connection.getInputStream();
 				if (in != null) {
 					protocol.transIn = in;
-					rs = ProtocolReader.read(protocol, method.getGenericReturnType(), method.getExceptionTypes(),
+					rs = ProtocolIOUtil.read(protocol, method.getGenericReturnType(), method.getExceptionTypes(),
 							seqId);
 				}
 			} finally {
