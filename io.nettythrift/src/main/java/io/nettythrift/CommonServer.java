@@ -10,7 +10,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 
-public class CommonServer {
+public class CommonServer implements java.io.Closeable {
 	private static Logger logger = LoggerFactory.getLogger(CommonServer.class);
 	private NioEventLoopGroup bossGroup;
 	private NioEventLoopGroup workerGroup;
