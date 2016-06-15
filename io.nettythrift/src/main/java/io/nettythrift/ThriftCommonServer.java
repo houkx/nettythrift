@@ -62,27 +62,31 @@ public class ThriftCommonServer extends CommonServer implements Runnable {
 		start(serverDef.getPort(), handler);
 	}
 
+	public void start(int bossThreads, int workThreads) throws Exception {
+		start(serverDef.getPort(), handler, bossThreads, workThreads);
+	}
+
 	class MonitorHandler extends ChannelHandlerAdapter {
 		ScheduledFuture<?> idleFuture;
 		long lastActiveTime;
 
 		@Override
 		public void read(ChannelHandlerContext ctx) throws Exception {
-//			logger.debug("*** read");
+			// logger.debug("*** read");
 			lastActiveTime = System.currentTimeMillis();
 			super.read(ctx);
 		}
 
 		@Override
 		public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-//			logger.debug("*** write");
+			// logger.debug("*** write");
 			lastActiveTime = System.currentTimeMillis();
 			super.write(ctx, msg, promise);
 		}
 
 		@Override
 		public void channelRegistered(final ChannelHandlerContext ctx) throws Exception {
-//			logger.debug("*** channelRegistered");
+			// logger.debug("*** channelRegistered");
 			allChannels.add(ctx.channel());
 			idleFuture = ctx.executor().scheduleAtFixedRate(new Runnable() {
 				@Override
@@ -92,10 +96,11 @@ public class ThriftCommonServer extends CommonServer implements Runnable {
 						logger.debug("*** CLOSE Idle connection :{} ***", ctx.channel());
 						idleFuture.cancel(false);
 						ctx.close();
-					} /*else {
-						System.err.println("now: " + now + ",now - lastActiveTime = " + (now - lastActiveTime)
-								+ ", IdleTimeMills=" + serverDef.getIdleTimeMills());
-					}*/
+					} /*
+						 * else { System.err.println("now: " + now +
+						 * ",now - lastActiveTime = " + (now - lastActiveTime) +
+						 * ", IdleTimeMills=" + serverDef.getIdleTimeMills()); }
+						 */
 				}
 			}, 1000, serverDef.getIdleTimeMills(), TimeUnit.MILLISECONDS);
 			super.channelRegistered(ctx);
@@ -103,7 +108,7 @@ public class ThriftCommonServer extends CommonServer implements Runnable {
 
 		@Override
 		public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
-//			logger.debug("*** channelUnregistered");
+			// logger.debug("*** channelUnregistered");
 			if (idleFuture != null) {
 				idleFuture.cancel(false);
 			}
@@ -113,27 +118,27 @@ public class ThriftCommonServer extends CommonServer implements Runnable {
 
 		@Override
 		public void channelActive(ChannelHandlerContext ctx) throws Exception {
-//			logger.debug("*** channelActive");
+			// logger.debug("*** channelActive");
 			super.channelActive(ctx);
 		}
 
 		@Override
 		public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress,
 				ChannelPromise promise) throws Exception {
-//			logger.debug("*** connect");
+			// logger.debug("*** connect");
 			super.connect(ctx, remoteAddress, localAddress, promise);
 		}
 
 		@Override
 		public void disconnect(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-//			logger.debug("*** disconnect");
+			// logger.debug("*** disconnect");
 			allChannels.remove(ctx.channel());
 			super.disconnect(ctx, promise);
 		}
 
 		@Override
 		public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-//			logger.debug("*** close()");
+			// logger.debug("*** close()");
 			idleFuture.cancel(false);
 			allChannels.remove(ctx.channel());
 			super.close(ctx, promise);

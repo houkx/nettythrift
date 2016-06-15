@@ -17,8 +17,12 @@ public class CommonServer implements java.io.Closeable {
 	private ChannelFuture f;
 
 	public void start(int port, ChannelHandler channelHandler) throws Exception {
-		bossGroup = new NioEventLoopGroup();
-		workerGroup = new NioEventLoopGroup();
+		start(port, channelHandler, 0, 0);
+	}
+
+	public void start(int port, ChannelHandler channelHandler, int bossThreads, int workThreads) throws Exception {
+		bossGroup = new NioEventLoopGroup(bossThreads);
+		workerGroup = new NioEventLoopGroup(workThreads);
 		try {
 			ServerBootstrap b = new ServerBootstrap();
 			b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
