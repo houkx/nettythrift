@@ -21,12 +21,15 @@
 			<artifactId>libthrift</artifactId>
 			<version>0.9.3</version>
 		</dependency>
+		<!-- <dependency> <groupId>io.netty</groupId> <artifactId>netty-all</artifactId> 
+			<version>5.0.0.Alpha2</version> </dependency> -->
+		<!-- https://mvnrepository.com/artifact/io.netty/netty-all -->
 		<dependency>
 			<groupId>io.netty</groupId>
 			<artifactId>netty-all</artifactId>
-			<version>5.0.0.Alpha2</version>
+			<version>4.1.1.Final</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.javassist</groupId>
 			<artifactId>javassist</artifactId>
@@ -109,21 +112,10 @@
 					</execution>
 				</executions>
 			</plugin>
-<!-- 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>2.9.1</version>
-				<executions>
-					<execution>
-						<id>attach-javadocs</id>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration> <additionalparam>-Xdoclint:none</additionalparam> 
-							</configuration>
-					</execution>
-				</executions>
-			</plugin> -->
+			<!-- <plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-javadoc-plugin</artifactId> 
+				<version>2.9.1</version> <executions> <execution> <id>attach-javadocs</id> 
+				<goals> <goal>jar</goal> </goals> <configuration> <additionalparam>-Xdoclint:none</additionalparam> 
+				</configuration> </execution> </executions> </plugin> -->
 			<!-- <plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-gpg-plugin</artifactId> 
 				<version>1.5</version> <executions> <execution> <id>sign-artifacts</id> <phase>verify</phase> 
 				<goals> <goal>sign</goal> </goals> </execution> </executions> </plugin> -->

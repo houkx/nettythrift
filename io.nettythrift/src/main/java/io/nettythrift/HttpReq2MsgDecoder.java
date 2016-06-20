@@ -13,7 +13,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaderUtil;
+import io.netty.handler.codec.http.HttpUtil;
 import io.nettythrift.transport.ThriftTransportType;
 
 public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest> {
@@ -87,7 +87,7 @@ public class HttpReq2MsgDecoder extends MessageToMessageDecoder<FullHttpRequest>
 					.setProctocolFactory(factory);
 			thriftMessage.fromProgram = fromProgram;
 			thriftMessage.proxyInfo = proxyInfo;
-			thriftMessage.connectionKeepAlive = HttpHeaderUtil.isKeepAlive(msg);
+			thriftMessage.connectionKeepAlive = HttpUtil.isKeepAlive(msg);
 			out.add(thriftMessage);
 		} else {
 			ThriftMessage thriftMessage = new ThriftMessage(Unpooled.EMPTY_BUFFER, ThriftTransportType.HTTP);

@@ -66,94 +66,94 @@ public class ThriftCommonServer extends CommonServer implements Runnable {
 		start(serverDef.getPort(), handler, bossThreads, workThreads);
 	}
 
-	class MonitorHandler extends ChannelHandlerAdapter {
-		ScheduledFuture<?> idleFuture;
-		long lastActiveTime;
-
-		@Override
-		public void read(ChannelHandlerContext ctx) throws Exception {
-			// logger.debug("*** read");
-			lastActiveTime = System.currentTimeMillis();
-			super.read(ctx);
-		}
-
-		@Override
-		public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-			// logger.debug("*** write");
-			lastActiveTime = System.currentTimeMillis();
-			super.write(ctx, msg, promise);
-		}
-
-		@Override
-		public void channelRegistered(final ChannelHandlerContext ctx) throws Exception {
-			// logger.debug("*** channelRegistered");
-			allChannels.add(ctx.channel());
-			idleFuture = ctx.executor().scheduleAtFixedRate(new Runnable() {
-				@Override
-				public void run() {
-					long now = System.currentTimeMillis();
-					if (now - lastActiveTime >= serverDef.getIdleTimeMills()) {
-						logger.debug("*** CLOSE Idle connection :{} ***", ctx.channel());
-						idleFuture.cancel(false);
-						ctx.close();
-					} /*
-						 * else { System.err.println("now: " + now +
-						 * ",now - lastActiveTime = " + (now - lastActiveTime) +
-						 * ", IdleTimeMills=" + serverDef.getIdleTimeMills()); }
-						 */
-				}
-			}, 1000, serverDef.getIdleTimeMills(), TimeUnit.MILLISECONDS);
-			super.channelRegistered(ctx);
-		}
-
-		@Override
-		public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
-			// logger.debug("*** channelUnregistered");
-			if (idleFuture != null) {
-				idleFuture.cancel(false);
-			}
-			allChannels.remove(ctx.channel());
-			super.channelUnregistered(ctx);
-		}
-
-		@Override
-		public void channelActive(ChannelHandlerContext ctx) throws Exception {
-			// logger.debug("*** channelActive");
-			super.channelActive(ctx);
-		}
-
-		@Override
-		public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress,
-				ChannelPromise promise) throws Exception {
-			// logger.debug("*** connect");
-			super.connect(ctx, remoteAddress, localAddress, promise);
-		}
-
-		@Override
-		public void disconnect(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-			// logger.debug("*** disconnect");
-			allChannels.remove(ctx.channel());
-			super.disconnect(ctx, promise);
-		}
-
-		@Override
-		public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-			// logger.debug("*** close()");
-			idleFuture.cancel(false);
-			allChannels.remove(ctx.channel());
-			super.close(ctx, promise);
-		}
-
-		@Override
-		public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-			if (cause instanceof java.io.IOException) {
-				logger.error("exceptionCaught", cause);
-				return;
-			}
-			super.exceptionCaught(ctx, cause);
-		}
-
-	}
+//	class MonitorHandler extends ChannelHandlerAdapter {
+//		ScheduledFuture<?> idleFuture;
+//		long lastActiveTime;
+//
+//		@Override
+//		public void read(ChannelHandlerContext ctx) throws Exception {
+//			// logger.debug("*** read");
+//			lastActiveTime = System.currentTimeMillis();
+//			super.read(ctx);
+//		}
+//
+//		@Override
+//		public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+//			// logger.debug("*** write");
+//			lastActiveTime = System.currentTimeMillis();
+//			super.write(ctx, msg, promise);
+//		}
+//
+//		@Override
+//		public void channelRegistered(final ChannelHandlerContext ctx) throws Exception {
+//			// logger.debug("*** channelRegistered");
+//			allChannels.add(ctx.channel());
+//			idleFuture = ctx.executor().scheduleAtFixedRate(new Runnable() {
+//				@Override
+//				public void run() {
+//					long now = System.currentTimeMillis();
+//					if (now - lastActiveTime >= serverDef.getIdleTimeMills()) {
+//						logger.debug("*** CLOSE Idle connection :{} ***", ctx.channel());
+//						idleFuture.cancel(false);
+//						ctx.close();
+//					} /*
+//						 * else { System.err.println("now: " + now +
+//						 * ",now - lastActiveTime = " + (now - lastActiveTime) +
+//						 * ", IdleTimeMills=" + serverDef.getIdleTimeMills()); }
+//						 */
+//				}
+//			}, 1000, serverDef.getIdleTimeMills(), TimeUnit.MILLISECONDS);
+//			super.channelRegistered(ctx);
+//		}
+//
+//		@Override
+//		public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+//			// logger.debug("*** channelUnregistered");
+//			if (idleFuture != null) {
+//				idleFuture.cancel(false);
+//			}
+//			allChannels.remove(ctx.channel());
+//			super.channelUnregistered(ctx);
+//		}
+//
+//		@Override
+//		public void channelActive(ChannelHandlerContext ctx) throws Exception {
+//			// logger.debug("*** channelActive");
+//			super.channelActive(ctx);
+//		}
+//
+//		@Override
+//		public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress,
+//				ChannelPromise promise) throws Exception {
+//			// logger.debug("*** connect");
+//			super.connect(ctx, remoteAddress, localAddress, promise);
+//		}
+//
+//		@Override
+//		public void disconnect(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+//			// logger.debug("*** disconnect");
+//			allChannels.remove(ctx.channel());
+//			super.disconnect(ctx, promise);
+//		}
+//
+//		@Override
+//		public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+//			// logger.debug("*** close()");
+//			idleFuture.cancel(false);
+//			allChannels.remove(ctx.channel());
+//			super.close(ctx, promise);
+//		}
+//
+//		@Override
+//		public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+//			if (cause instanceof java.io.IOException) {
+//				logger.error("exceptionCaught", cause);
+//				return;
+//			}
+//			super.exceptionCaught(ctx, cause);
+//		}
+//
+//	}
 
 	private final ChannelInitializer<SocketChannel> handler = new ChannelInitializer<SocketChannel>() {
 		@Override
@@ -161,7 +161,7 @@ public class ThriftCommonServer extends CommonServer implements Runnable {
 			ChannelPipeline pl = ch.pipeline();
 			int maxFrame = serverDef.getMaxFrameLength();
 
-			pl.addLast(new MonitorHandler());
+//			pl.addLast(new MonitorHandler());
 
 			pl.addLast("msgDecoder", new ThriftMessageDecoder(serverDef));
 

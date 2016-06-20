@@ -72,7 +72,7 @@ public class ThriftServerHandler extends SimpleChannelInboundHandler<ThriftMessa
 	}
 
 	@Override
-	protected void messageReceived(final ChannelHandlerContext ctx, final ThriftMessage message) throws Exception {
+	protected void channelRead0(final ChannelHandlerContext ctx, final ThriftMessage message) throws Exception {
 		// System.out.printf("ThriftServerHandler: channelRead0( message = %s),
 		// readable? %s, frameSize = %d\n" , message
 		// ,message.getBuffer().isReadable(),message.getBuffer().readableBytes());

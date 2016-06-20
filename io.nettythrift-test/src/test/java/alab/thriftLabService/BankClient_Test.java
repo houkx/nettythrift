@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -175,9 +176,17 @@ public class BankClient_Test {
 
 		// user.write(oprot);
 		TGetBalanceRequest req = getReq();
+		StringBuilder city = new StringBuilder();
 		//
+		for (int i = 0; i < 100; i++) {
+			city.append(UUID.randomUUID().toString());
+		}
+		System.out.println("城市size = "+city.length());
+		req.setCity(city.toString());
+
 		Object resp = client.getBalance(user, req);
 		System.out.println(resp);
+		client.getInputProtocol().getTransport().close();
 	}
 
 	private TGetBalanceRequest getReq() {
@@ -194,25 +203,31 @@ public class BankClient_Test {
 		public List<Integer> supportTypes; // required
 		public Map<String, String> otherDescs; // required
 		public long uid; // required
+
 		public void setUid(long uid) {
 			this.uid = uid;
 		}
+
 		public void setName(String name) {
 			this.name = name;
 		}
+
 		public void setAge(int age) {
 			this.age = age;
 		}
+
 		public void setLength(double length) {
 			this.length = length;
 		}
+
 		public void setSupportTypes(List<Integer> supportTypes) {
 			this.supportTypes = supportTypes;
 		}
+
 		public void setOtherDescs(Map<String, String> otherDescs) {
 			this.otherDescs = otherDescs;
 		}
-		
+
 	}
 
 	private MyUser myUser() {
@@ -228,6 +243,7 @@ public class BankClient_Test {
 		user.setOtherDescs(otherDescs);
 		return user;
 	}
+
 	private TUser getUser() {
 		TUser user = new TUser();
 		user.setAge(18);
