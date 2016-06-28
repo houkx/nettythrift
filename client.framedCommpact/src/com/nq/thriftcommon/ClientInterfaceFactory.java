@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.SocketFactory;
+import javax.xml.ws.ProtocolException;
 
 /**
  * @author HouKangxi
@@ -112,14 +113,12 @@ public class ClientInterfaceFactory {
 			try {
 				byte[] arrContent = outbuff.toByteArray();
 				int msgLen = arrContent.length;
-				System.out.printf("*** 客户端 msgLen = %d, time=%d, connection = %s\n", msgLen, System.currentTimeMillis(),
-						connection);
-				byte[] arr4Req = new byte[4 + msgLen];// 代表着消息长度的四个字节
+				byte[] arr4Req = new byte[4 + msgLen];
+				// 前四个字节代表着消息长度
 				arr4Req[0] = (byte) (msgLen >> 24);
 				arr4Req[1] = (byte) ((msgLen >> 16) & 0xff);
 				arr4Req[2] = (byte) ((msgLen >> 8) & 0xff);
 				arr4Req[3] = (byte) (msgLen & 0xff);
-				System.out.printf("** arrayLen = [%d, %d, %d, %d]\n", arr4Req[0], arr4Req[1], arr4Req[2], arr4Req[3]);
 				System.arraycopy(arrContent, 0, arr4Req, 4, msgLen);
 
 				connection = factory.createSocket();
@@ -129,28 +128,18 @@ public class ClientInterfaceFactory {
 
 				InputStream in = connection.getInputStream();
 				if (in != null) {
-					// int readLen = 0, offset = 0;
-					// while (readLen < 4) {
-					// readLen += in.read(arrLen, offset, 4 - readLen);
-					// }
 					int readLen = in.read(arr4Req, 0, 4);
 					if (readLen == 1) {
 						readLen = in.read(arr4Req, 1, 4);
-						System.out.printf("** respArrayLen(!1) = [%d, %d, %d, %d]\n", arr4Req[1], arr4Req[2],
-								arr4Req[3], arr4Req[4]);
-					} else if (readLen == 4) {
-						System.out.printf("** respArrayLen = [%d, %d, %d, %d]\n", arr4Req[0], arr4Req[1], arr4Req[2],
-								arr4Req[3]);
 					}
-					System.out.println("readLen=" + readLen + ",connection = " + connection);
 
 					if (readLen == 4) {
-						// 此时arrLen代表返回结果的长度
+						// 此时前4个字节代表着返回值的长度
 						protocol.transIn = in;
 						rs = ProtocolIOUtil.read(protocol, method.getGenericReturnType(), method.getExceptionTypes(),
 								seqId);
 					} else {
-						System.out.println("arr[0]=" + arr4Req[0] + ", 出错的socket: " + connection);
+						throw new ProtocolException("frame protocol not support?");
 					}
 				}
 			} catch (IOException ex) {
