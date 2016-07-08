@@ -23,21 +23,11 @@ import javax.net.SocketFactory;
  *
  */
 public class SocketConnectionPool extends SocketFactory {
-	//
-	// ==================== CONSTANTS ====================
-	//
 	public static final int DEFAULT_MAX_IDLE = 5;
 	public static final int DEFAULT_MAX_TOTAL = 5;
 	public static final long DEFAULT_MAX_WAIT = 500;
 	/**
-	 * 空闲清理的时间-默认5秒，即5秒没有使用的连接则销毁
-	 */
-	public static final long DEFAULT_IDELTIME = 5000;
-	//
-	// ====================== FIELDS =======================
-	//
-	/**
-	 * 真正负责创建连接的socketFactory--把创建连接的细节抛给外部socketFactory
+	 * 真正负责创建连接的socketFactory--本类专注做连接池，把创建连接的细节抛给外部socketFactory
 	 */
 	private final SocketFactory socketFactory;
 	/**
@@ -67,17 +57,14 @@ public class SocketConnectionPool extends SocketFactory {
 	/**
 	 * 负责清理空闲连接的定时器---默认清理超过15秒没有使用的连接，可通过maxIdleTime设置
 	 */
-	private Timer idleCheckTimer = new Timer("NQSocketConnectionIdelCheckTimer", true);
+	private Timer idleCheckTimer = new Timer("SocketConnectionIdelCheckTimer", true);
 
 	private final AtomicLong borrowedCount = new AtomicLong(0);
 	private final AtomicLong createdCount = new AtomicLong(0);
 	private final AtomicLong destroyedCount = new AtomicLong(0);
 
-	//
-	// ==================== CONSTUCTORS ===================
-	//
 	public SocketConnectionPool(SocketFactory socketFactory) {
-		this(socketFactory, DEFAULT_MAX_IDLE, DEFAULT_MAX_TOTAL, DEFAULT_MAX_WAIT, true, DEFAULT_IDELTIME);
+		this(socketFactory, DEFAULT_MAX_IDLE, DEFAULT_MAX_TOTAL, DEFAULT_MAX_WAIT, true, 15000);
 	}
 
 	public SocketConnectionPool(SocketFactory socketFactory, int maxIdle, int maxTotal, long maxWaitMills,
@@ -99,21 +86,23 @@ public class SocketConnectionPool extends SocketFactory {
 				if (size < 1) {
 					return;
 				}
+				// toArray() copy 一个副本，避免
 				SocketWrapper[] scs = idleObjects.toArray(new SocketWrapper[size]);
 				for (int i = 0; i < scs.length; i++) {
 					SocketWrapper sc = scs[i];
 					if (!sc.isWorking && System.currentTimeMillis() - sc.lastUseTime >= maxIdleTime) {
+						// System.out.println("try删除空闲太久的连接: " + sc);
 						destroy(sc);
 					}
 				}
 			}
-		}, 5000, 2000);
+		}, 5000, 2000);// 检查的开始时间 和 时间间隔--按需调整
 	}
+//
+//	public long getCreatedCount() {
+//		return createdCount.get();
+//	}
 
-	//
-	// ================= METHODS ===============================
-	//
-	
 	@Override
 	public Socket createSocket() throws IOException {
 		try {
@@ -171,6 +160,7 @@ public class SocketConnectionPool extends SocketFactory {
 		}
 		p.isWorking = true;
 		p.lastUseTime = System.currentTimeMillis();
+//		System.out.println("borrow socket: " + p);
 		borrowedCount.incrementAndGet();
 		return p;
 	}
@@ -203,6 +193,7 @@ public class SocketConnectionPool extends SocketFactory {
 	 * @param socketWrapper
 	 */
 	public void returnToPool(SocketWrapper p) {
+//		System.out.println("try returnToPool:" + p);
 		synchronized (p) {
 			if (!p.isWorking) {
 				throw new IllegalStateException("Object has already been returned to this pool or is invalid");
@@ -232,6 +223,7 @@ public class SocketConnectionPool extends SocketFactory {
 			return;
 		}
 		synchronized (socketWrapper) {
+//			System.out.println("try destroy :" + socketWrapper);
 			if (!socketWrapper.target.isClosed()) {
 				socketWrapper.isWorking = false;
 				try {
