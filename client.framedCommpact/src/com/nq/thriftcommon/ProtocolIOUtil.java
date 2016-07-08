@@ -189,7 +189,7 @@ class ProtocolIOUtil {
 	}
 
 	static void skip(TCompactProtocol reader, int fieldType) {
-		H h = ProtocolIOUtil.getH(fieldType);
+		H h = getH(fieldType);
 		try {
 			h.read(reader, h.jType);
 			reader.readFieldEnd();
