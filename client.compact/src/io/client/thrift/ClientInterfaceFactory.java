@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.nq.thriftcommon;
+package io.client.thrift;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;

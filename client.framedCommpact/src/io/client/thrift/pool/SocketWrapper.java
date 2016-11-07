@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.nq.thriftcommon.pool;
+package io.client.thrift.pool;
 
 import java.io.IOException;
 import java.io.InputStream;

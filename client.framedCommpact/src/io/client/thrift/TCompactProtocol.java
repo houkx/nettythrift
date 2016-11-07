@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.nq.thriftcommon;
+package io.client.thrift;
 
 import java.io.InputStream;
 import java.io.OutputStream;

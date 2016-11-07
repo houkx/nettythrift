@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.nq.thriftcommon;
+package io.client.thrift;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,8 +27,8 @@ import javax.net.SocketFactory;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import com.nq.thriftcommon.Json.Strategy;
-import com.nq.thriftcommon.annotaion.Index;
+import io.client.thrift.Json.Strategy;
+import io.client.thrift.annotaion.Index;
 
 /**
  * 使用 HTTP + JSON 协议

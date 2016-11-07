@@ -1,4 +1,4 @@
-package com.nq.thriftcommon.annotaion;
+package io.client.thrift.annotaion;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

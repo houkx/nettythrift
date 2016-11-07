@@ -1,4 +1,4 @@
-package com.nq.thriftcommon;
+package io.client.thrift;
 
 import static java.lang.reflect.Modifier.ABSTRACT;
 

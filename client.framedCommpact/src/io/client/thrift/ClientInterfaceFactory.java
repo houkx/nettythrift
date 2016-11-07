@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.nq.thriftcommon;
+package io.client.thrift;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -31,7 +31,7 @@ public class ClientInterfaceFactory {
 	 * <p>
 	 * 调用者可以实现自定义的
 	 * SocketFactory来内部配置Socket参数(如超时时间，SSL等),也可以通过返回包装的Socket来实现连接池，
-	 * 也可以使用内置的连接池类：{@link com.nq.thriftcommon.pool.SocketConnectionPool} <br/>
+	 * 也可以使用内置的连接池类：{@link io.client.thrift.pool.SocketConnectionPool} <br/>
 	 * 使用例子：<br/>
 	 * {@code SocketFactory tcpfac = new TcpSocketFactory("localhost", 8080);}
 	 * <br/>

@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.nq.thriftcommon;
+package io.client.thrift;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.nq.thriftcommon.annotaion.Index;
+import io.client.thrift.annotaion.Index;
 
 /**
  * Protocol读写工具类
