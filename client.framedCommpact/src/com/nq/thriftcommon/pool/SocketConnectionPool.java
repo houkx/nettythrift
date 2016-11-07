@@ -25,7 +25,9 @@ import javax.net.SocketFactory;
 public class SocketConnectionPool extends SocketFactory {
 	public static final int DEFAULT_MAX_IDLE = 5;
 	public static final int DEFAULT_MAX_TOTAL = 5;
-	public static final long DEFAULT_MAX_WAIT = 500;
+	public static final long DEFAULT_MAX_WAIT = 8000;
+	public static final int DEFAULT_MAX_IDLE_TIME = 5000;
+	public static final int DEFAULT_IDLE_CHECK_GAP = 2000;
 	/**
 	 * 真正负责创建连接的socketFactory--本类专注做连接池，把创建连接的细节抛给外部socketFactory
 	 */
@@ -64,9 +66,19 @@ public class SocketConnectionPool extends SocketFactory {
 	private final AtomicLong destroyedCount = new AtomicLong(0);
 
 	public SocketConnectionPool(SocketFactory socketFactory) {
-		this(socketFactory, DEFAULT_MAX_IDLE, DEFAULT_MAX_TOTAL, DEFAULT_MAX_WAIT, true, 15000);
+		this(socketFactory, DEFAULT_MAX_IDLE, DEFAULT_MAX_TOTAL, DEFAULT_MAX_WAIT, true, DEFAULT_MAX_IDLE_TIME);
 	}
 
+	/**
+	 * 
+	 * @param socketFactory
+	 *            - 真正负责创建连接的socketFactory--本类专注做连接池，把创建连接的细节抛给外部socketFactory
+	 * @param maxIdle
+	 * @param maxTotal
+	 * @param maxWaitMills
+	 * @param blockWhenExhausted
+	 * @param maxIdleTime
+	 */
 	public SocketConnectionPool(SocketFactory socketFactory, int maxIdle, int maxTotal, long maxWaitMills,
 			boolean blockWhenExhausted, final long maxIdleTime) {
 		if (socketFactory instanceof SocketConnectionPool) {
@@ -90,18 +102,23 @@ public class SocketConnectionPool extends SocketFactory {
 				SocketWrapper[] scs = idleObjects.toArray(new SocketWrapper[size]);
 				for (int i = 0; i < scs.length; i++) {
 					SocketWrapper sc = scs[i];
-					if (!sc.isWorking && System.currentTimeMillis() - sc.lastUseTime >= maxIdleTime) {
+					if (sc != null && !sc.isWorking && System.currentTimeMillis() - sc.lastUseTime >= maxIdleTime) {
 						// System.out.println("try删除空闲太久的连接: " + sc);
 						destroy(sc);
 					}
 				}
 			}
-		}, 5000, 2000);// 检查的开始时间 和 时间间隔--按需调整
+		}, 3000, DEFAULT_IDLE_CHECK_GAP);// 检查的开始时间 和 时间间隔--按需调整
 	}
-//
-//	public long getCreatedCount() {
-//		return createdCount.get();
-//	}
+
+	public long getCreatedCount() {
+		return createdCount.get();
+	}
+
+	public LinkedBlockingDeque<SocketWrapper> getIdleObjects() {
+		// TODO just for debug
+		return idleObjects;
+	}
 
 	@Override
 	public Socket createSocket() throws IOException {
@@ -160,11 +177,11 @@ public class SocketConnectionPool extends SocketFactory {
 		}
 		p.isWorking = true;
 		p.lastUseTime = System.currentTimeMillis();
-//		System.out.println("borrow socket: " + p);
+		// System.out.println("borrow socket: " + p);
 		borrowedCount.incrementAndGet();
 		return p;
 	}
-
+	
 	protected SocketWrapper create() throws IOException {
 		long created = createdCount.incrementAndGet();
 		if ((maxTotal > -1 && created > maxTotal) || created > Integer.MAX_VALUE) {
@@ -193,7 +210,7 @@ public class SocketConnectionPool extends SocketFactory {
 	 * @param socketWrapper
 	 */
 	public void returnToPool(SocketWrapper p) {
-//		System.out.println("try returnToPool:" + p);
+		// System.out.println("try returnToPool:" + p);
 		synchronized (p) {
 			if (!p.isWorking) {
 				throw new IllegalStateException("Object has already been returned to this pool or is invalid");
@@ -223,7 +240,7 @@ public class SocketConnectionPool extends SocketFactory {
 			return;
 		}
 		synchronized (socketWrapper) {
-//			System.out.println("try destroy :" + socketWrapper);
+			// System.out.println("try destroy :" + socketWrapper);
 			if (!socketWrapper.target.isClosed()) {
 				socketWrapper.isWorking = false;
 				try {

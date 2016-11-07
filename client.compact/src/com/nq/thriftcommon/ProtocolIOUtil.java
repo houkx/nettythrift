@@ -42,13 +42,14 @@ class ProtocolIOUtil {
 		// 验证seqId 与请求的是否相同
 		if (seqid != seqid_) {
 			throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID,
-					methodName + " failed: out of sequence response");
+					methodName + " failed: out of sequence response: " + seqid + " != " + seqid_);
 		}
 		// -- read Struct_result START --
 		reader.readStructBegin();
 		int field = reader.readFieldBegin();
 		int fieldType = ((field >> 16) & 0x0000ffff);
 		short fieldId = (short) (field & 0x0000ffff);
+		// class ${interfaceMethod}_result{id0:success id1: exception}
 		if (fieldId == 0) {
 			H h = ProtocolIOUtil.getH(fieldType);
 			@SuppressWarnings("unchecked")
@@ -175,7 +176,7 @@ class ProtocolIOUtil {
 					break;
 				} else if (fieldId > fs.length) {
 					// skip
-					skip(reader, fieldType);
+					skip(reader, (byte) fieldType);
 				}
 			}
 			reader.readStructEnd();
@@ -188,13 +189,102 @@ class ProtocolIOUtil {
 		// }
 	}
 
-	static void skip(TCompactProtocol reader, int fieldType) {
-		H h = ProtocolIOUtil.getH(fieldType);
-		try {
-			h.read(reader, h.jType);
-			reader.readFieldEnd();
-		} catch (Exception e) {
-			e.printStackTrace();
+	// static void skip(TCompactProtocol reader, int fieldType) {
+	// H h = ProtocolIOUtil.getH(fieldType);
+	// try {
+	// h.read(reader, h.jType);
+	// reader.readFieldEnd();
+	// } catch (Exception e) {
+	// e.printStackTrace();
+	// }
+	// }
+
+	static void skip(TCompactProtocol prot, byte type) throws Exception {
+		skip(prot, type, 512);
+	}
+
+	static void skip(TCompactProtocol prot, byte type, int maxDepth) throws Exception {
+		if (maxDepth <= 0) {
+			throw new Exception("Maximum skip depth exceeded");
+		}
+		switch (type) {
+		case 2/* TType.BOOL */:
+			prot.readBool();
+			break;
+
+		case 3/* TType.BYTE */:
+			prot.readByte();
+			break;
+
+		case 6/* TType.I16 */:
+			prot.readI16();
+			break;
+
+		case 8/* TType.I32 */:
+			prot.readI32();
+			break;
+
+		case 10/* TType.I64 */:
+			prot.readI64();
+			break;
+
+		case 4/* TType.DOUBLE */:
+			prot.readDouble();
+			break;
+
+		case 11/* TType.STRING */:
+			prot.readBinary();
+			break;
+
+		case 12/* TType.STRUCT */:
+			prot.readStructBegin();
+			while (true) {
+				int field = prot.readFieldBegin();
+				byte fieldType = (byte) ((field >> 16) & 0xff);
+				if (fieldType == 0/* TType.STOP */) {
+					break;
+				}
+				skip(prot, fieldType, maxDepth - 1);
+				prot.readFieldEnd();
+			}
+			prot.readStructEnd();
+			break;
+
+		case 13/* TType.MAP */: {
+			long map = prot.readMapBegin();
+			final int size = (int) (map & 0x7FFFFFFFL);
+			map >>= 32;
+			final byte keyType = (byte) ((map & 0xFF00) >> 8);
+			final byte valueType = (byte) (map & 0x00FF);
+			for (int i = 0; i < size; i++) {
+				skip(prot, keyType, maxDepth - 1);
+				skip(prot, valueType, maxDepth - 1);
+			}
+			prot.readMapEnd();
+			break;
+		}
+		case 14/* TType.SET */: {
+			final long set = prot.readSetBegin();
+			final int size = (int) (set & 0x7FFFFFFFL);
+			final byte elemType = (byte) ((set >> 32) & 0xFF);
+			for (int i = 0; i < size; i++) {
+				skip(prot, elemType, maxDepth - 1);
+			}
+			prot.readSetEnd();
+			break;
+		}
+		case 15/* TType.LIST */: {
+			final long list = prot.readListBegin();
+			final int size = (int) (list & 0x7FFFFFFFL);
+			final byte elemType = (byte) ((list >> 32) & 0xFF);
+			for (int i = 0; i < size; i++) {
+				skip(prot, elemType, maxDepth - 1);
+			}
+			prot.readListEnd();
+			break;
+		}
+		default:
+			break;
 		}
 	}
 
@@ -300,8 +390,7 @@ class ProtocolIOUtil {
 	static H getH(Object type) {
 		Object key = type;
 		if (type instanceof ParameterizedType) {
-			ParameterizedType pt = (ParameterizedType) type;
-			key = pt.getRawType();
+			key = ((ParameterizedType) type).getRawType();
 		}
 		H h = class2type.get(key);
 		if (h != null) {
