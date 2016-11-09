@@ -43,5 +43,10 @@ public class DemoServer {
 		public void zip(String str, int type) throws TException {
 			System.out.printf("***　zip:(%s, %d)\n", str, type);
 		}
+
+		@Override
+		public void uploadAction(String str) throws TException {
+			System.out.printf("***　uploadAction:(%s)\n", str);
+		}
 	}
 }

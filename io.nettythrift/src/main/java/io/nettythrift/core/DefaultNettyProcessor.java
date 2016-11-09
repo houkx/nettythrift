@@ -101,6 +101,11 @@ public class DefaultNettyProcessor implements NettyProcessor {
 			logger.debug("direct return for voidMethod: {}", msg.name);
 			onComplete.beforeWrite(msg);
 			out.writeMessageBegin(new TMessage(msg.name, TMessageType.REPLY, msg.seqid));
+			//
+			out.writeStructBegin(null);
+			out.writeFieldStop();
+			out.writeStructEnd();
+			//
 			out.writeMessageEnd();
 			out.getTransport().flush();
 			onComplete.afterWrite(msg, null, TMessageType.REPLY);
