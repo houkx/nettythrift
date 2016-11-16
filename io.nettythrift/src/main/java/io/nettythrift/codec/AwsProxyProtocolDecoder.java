@@ -32,22 +32,26 @@ public class AwsProxyProtocolDecoder extends ByteToMessageDecoder {
 	public AwsProxyProtocolDecoder() {
 	}
 
+	protected void notifyNext(ChannelHandlerContext ctx, ByteBuf buffer){
+		ctx.fireChannelRead(buffer.retain());
+	}
+	
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> out) throws Exception {
 		if (!isProxyProtocol(buffer)) {
-			ctx.fireChannelRead(buffer.retain());// 往下个ChannelInBoundHandler 传递
+			notifyNext(ctx, buffer);// 往下个ChannelInBoundHandler 传递
 			return;
 		}
 		Attribute<String> attr = ctx.attr(KEY_PROXY);
 		if (attr.get() != null) {
 			logger.debug("ProxyProtocolDecoder: 已解析过代理");
-			ctx.fireChannelRead(buffer.retain());// 往下个ChannelInBoundHandler 传递
+			notifyNext(ctx, buffer);// 往下个ChannelInBoundHandler 传递
 			return;
 		}
 		logger.debug("尝试解析代理");
 		int len = Math.min(buffer.readableBytes(), 10);
 		if (len < 10) {
-			ctx.fireChannelRead(buffer.retain());// 往下个ChannelInBoundHandler 传递
+			notifyNext(ctx, buffer);// 往下个ChannelInBoundHandler 传递
 			return;
 		}
 		if (buffer.getByte(9) == '4') {// PROXY TCP4
@@ -86,7 +90,7 @@ public class AwsProxyProtocolDecoder extends ByteToMessageDecoder {
 			System.err.println("IPV" + buffer.getByte(9) + "?");
 		}
 		logger.debug("proxy最后接力");
-		ctx.fireChannelRead(buffer.retain());// 往下个ChannelInBoundHandler
+		notifyNext(ctx, buffer);// 往下个ChannelInBoundHandler
 		// 传递
 	}
 

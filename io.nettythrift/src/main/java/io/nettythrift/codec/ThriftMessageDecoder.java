@@ -58,10 +58,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			ThriftMessage msg = decodeMessage(ctx, in, isFramed);
 			logger.debug("decodeMessage() return:{}, isFramed? {}", msg, isFramed[0]);
 			if (msg != null) {
-				ByteBuf buf = msg.getContent();
-				if (buf.refCnt() == 1) {
-					buf.retain();
-				}
+				msg.getContent().retain();
 				if (isFramed[0]) {
 					msg.setWrapper(framedMessageWrapper(successor));
 				} else {
@@ -249,7 +246,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			buf.writerIndex(0);
 			buf.writeInt(size);
 			buf.writerIndex(writerIndex);
-			return buf.retain();
+			return buf;
 		}
 
 	};

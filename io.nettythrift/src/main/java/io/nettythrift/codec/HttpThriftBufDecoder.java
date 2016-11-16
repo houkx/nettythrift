@@ -102,7 +102,7 @@ public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpReques
 				handleHttpHomePage(ctx, request);
 				return;
 			}
-			content = request.content().retain();
+			content = request.content();
 		} else {
 			queryStr = URLDecoder.decode(queryStr, "UTF-8");
 			int strLen = queryStr.length();
@@ -124,7 +124,7 @@ public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpReques
 			byte[] bytes = queryStr.getBytes();
 			// System.err.println("URI: bytes[0] = "+bytes[0]+", len =
 			// "+bytes.length);
-			content = Unpooled.wrappedBuffer(bytes).retain();
+			content = Unpooled.wrappedBuffer(bytes);
 		}
 		logger.debug("content.size = " + content.readableBytes());
 		out.add(content.retain());

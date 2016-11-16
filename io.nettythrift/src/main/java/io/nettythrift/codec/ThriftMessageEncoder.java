@@ -30,7 +30,7 @@ public class ThriftMessageEncoder extends SimpleChannelInboundHandler<ThriftMess
 	@Override
 	protected void messageReceived(final ChannelHandlerContext ctx, final ThriftMessage message) throws Exception {
 		ByteBuf buffer = message.getContent();
-		logger.debug("msg.content:: size={}, refCount={}", buffer.readableBytes(), buffer.refCnt());
+		logger.debug("msg.content:: {}", buffer);
 
 		final TNettyTransport transport = new TNettyTransport(ctx.channel(), buffer);
 		TProtocolFactory protocolFactory = message.getProtocolFactory();

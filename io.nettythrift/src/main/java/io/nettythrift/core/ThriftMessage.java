@@ -61,4 +61,10 @@ public class ThriftMessage {
         return this;
     }
 
+	@Override
+	public String toString() {
+		return "ThriftMessage [content=" + content + ", protocolFactory=" + protocolFactory + ", wrapper=" + wrapper
+				+ "]";
+	}
+
 }

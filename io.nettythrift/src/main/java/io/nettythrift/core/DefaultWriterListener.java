@@ -26,9 +26,10 @@ public class DefaultWriterListener implements WriteListener {
 	public void beforeWrite(TMessage msg) {
 		// TODO reuse message's buffer?
 		// voidMethod's return message is very short
+		message.getContent().release();
 		ByteBuf buf = ctx.alloc().buffer(serverDef.isVoidMethod(msg.name) ? 128 : 1024, serverDef.maxFrameSize)
-				.retain();
-		logger.debug("beforeWrite: buf's cap = {}", buf.capacity());
+				;
+		logger.debug("beforeWrite: buf={}", buf);
 		message.setContent(buf).beforeWrite(ctx);
 		transport.setOutputBuffer(buf);
 	}
@@ -36,7 +37,7 @@ public class DefaultWriterListener implements WriteListener {
 	@Override
 	public void afterWrite(TMessage msg, Throwable cause, int code) {
 		if (transport.isHasFlush()) {
-			message.setContent(transport.getOutputBuffer()).write(ctx);
+			message.write(ctx);
 		} else {
 			logger.error("fail to process! code={}", code, cause);
 		}
