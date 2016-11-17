@@ -27,7 +27,7 @@ public class IdleDisconnectHandler extends IdleStateHandler {
 
 	@Override
 	protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception {
-		System.out.println("关闭空闲连接: " + ctx.channel());
+//		System.out.println("关闭空闲连接: " + ctx.channel());
 		ctx.channel().close();
 	}
 }

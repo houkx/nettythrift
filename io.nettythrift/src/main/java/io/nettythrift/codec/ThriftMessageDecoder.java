@@ -51,27 +51,20 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 	 */
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-		// ByteBuf in = contentMsg.getContent();
 		if (ctx.channel().isActive()) {
-			logger.debug("===== decode() Active=====");
-			boolean[] isFramed = new boolean[1];
-			ThriftMessage msg = decodeMessage(ctx, in, isFramed);
-			logger.debug("decodeMessage() return:{}, isFramed? {}", msg, isFramed[0]);
+//			logger.debug("===== decode() Active=====");
+			ThriftMessage msg = decodeMessage(ctx, in);
+			logger.debug("decodeMessage() return:{}", msg);
 			if (msg != null) {
 				msg.getContent().retain();
-				if (isFramed[0]) {
-					msg.setWrapper(framedMessageWrapper(successor));
-				} else {
-					msg.setWrapper(unframedMessageWrapper(successor));
-				}
 				out.add(msg);
 			}
-		} else {
+		}/* else {
 			logger.debug("===== decode() inActive=====");
-		}
+		}*/
 	}
 
-	protected ThriftMessage decodeMessage(ChannelHandlerContext ctx, ByteBuf buffer, boolean[] isFramed)
+	protected ThriftMessage decodeMessage(ChannelHandlerContext ctx, ByteBuf buffer)
 			throws Exception {
 
 		TProtocolFactory inputProtocolFactory = getProtocolFactory(buffer);
@@ -86,7 +79,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			// A non-zero MSB for the first byte of the message implies the
 			// message starts with a
 			// protocol id (and thus it is unframed).
-			return new ThriftMessage(messageBuffer, inputProtocolFactory);
+			return new ThriftMessage(messageBuffer, inputProtocolFactory).setWrapper(unframedMessageWrapper(successor));
 		} else if (buffer.readableBytes() < MESSAGE_FRAME_SIZE) {
 			// Expecting a framed message, but not enough bytes available to
 			// read the frame size
@@ -102,8 +95,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 			// connectionContext.setAttribute(ServerDef.KEY_PROTOCOL_FACTORY,
 			// inputProtocolFactory);
 			// Messages with a zero MSB in the first byte are framed messages
-			isFramed[0] = true;
-			return new ThriftMessage(messageBuffer, inputProtocolFactory);
+			return new ThriftMessage(messageBuffer, inputProtocolFactory).setWrapper(framedMessageWrapper(successor));
 		}
 	}
 
@@ -157,10 +149,10 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 
 	protected ByteBuf tryDecodeUnframedMessage(ChannelHandlerContext ctx, Channel channel, ByteBuf buffer,
 			TProtocolFactory inputProtocolFactory) throws Exception {
-		System.out.println("*** 解析流式协议");
+//		System.out.println("*** 解析流式协议");
 		short headCode = buffer.getShort(buffer.readerIndex());
 		if (headCode > 23300 && ']' != buffer.getByte(buffer.readableBytes() - 1)) {
-			System.out.println("JSON 协议已经确定请求不完整，直接返回null");
+//			System.out.println("JSON 协议已经确定请求不完整，直接返回null");
 			return null;
 		}
 		// Perform a trial decode, skipping through
@@ -182,15 +174,15 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 
 			messageLength = decodeAttemptTransport.getReadByteCount() - initialReadBytes;
 		} catch (TTransportException e) {
-			System.out.println("** 不完整的msg: TTransportException");
+//			System.out.println("** 不完整的msg: TTransportException");
 			// No complete message was decoded: ran out of bytes
 			return null;
 		} catch (IndexOutOfBoundsException e) {
-			System.out.println("** 不完整的msg: IndexOutOfBoundsException");
+//			System.out.println("** 不完整的msg: IndexOutOfBoundsException");
 			// No complete message was decoded: ran out of bytes
 			return null;
 		} catch (TProtocolException e) {
-			System.out.println("** 不完整的msg: TProtocolException");
+//			System.out.println("** 不完整的msg: TProtocolException");
 			// No complete message was decoded: ran out of bytes
 			return null;
 		} finally {
@@ -202,7 +194,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		}
 
 		if (messageLength <= 0) {
-			System.out.println("** 消息长度非法：" + messageLength);
+//			System.out.println("** 消息长度非法：" + messageLength);
 			return null;
 		}
 
@@ -210,7 +202,7 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 		ByteBuf messageBuffer = extractFrame(buffer, messageStartReaderIndex, messageLength);
 		// set real readerIndex
 		buffer.readerIndex(messageStartReaderIndex + messageLength);
-		System.out.println("** 返回完整消息");
+//		System.out.println("** 返回完整消息");
 		return messageBuffer;
 	}
 
