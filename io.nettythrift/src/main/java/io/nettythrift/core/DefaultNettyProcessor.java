@@ -31,11 +31,13 @@ public class DefaultNettyProcessor implements NettyProcessor {
 	public DefaultNettyProcessor(ThriftServerDef serverDef) {
 		this.serverDef = serverDef;
 	}
-
+	
+	// NOTE: invoked in IO thread
 	protected boolean filterBeforeRead(ChannelHandlerContext ctx, TMessage msg) {
 		return false;
 	}
-
+	
+	// NOTE: invoked in business thread
 	protected boolean filterBeforeWrite(ChannelHandlerContext ctx, TMessage msg,
 			@SuppressWarnings("rawtypes") TBase args, boolean filterBeforeRead) {
 		return false;
@@ -109,11 +111,11 @@ public class DefaultNettyProcessor implements NettyProcessor {
 			out.writeMessageEnd();
 			out.getTransport().flush();
 			onComplete.afterWrite(msg, null, TMessageType.REPLY);
-			final boolean filterBeforeWrite = filterBeforeWrite(ctx, msg, args, filterBeforeRead);
 			serverDef.executor.submit(new Runnable() {
 				@SuppressWarnings("unchecked")
 				@Override
 				public void run() {
+					boolean filterBeforeWrite = filterBeforeWrite(ctx, msg, args, filterBeforeRead);
 					try {
 						// ==== invoke user interface logics
 						fn.getResult(serverDef.iface, args);
@@ -133,11 +135,11 @@ public class DefaultNettyProcessor implements NettyProcessor {
 	protected void invokeAndWrite(final ChannelHandlerContext ctx, final TProtocol out, final TMessage msg,
 			final boolean filterBeforeRead, final ProcessFunction fn, final TBase args, final WriteListener onComplete)
 			throws InterruptedException, ExecutionException {
-		final boolean filterBeforeWrite = filterBeforeWrite(ctx, msg, args, filterBeforeRead);
 		// invoke may be in a User Thread
 		serverDef.executor.submit(new Runnable() {
 			@Override
 			public void run() {
+				boolean filterBeforeWrite = filterBeforeWrite(ctx, msg, args, filterBeforeRead);
 				TBase result = null;
 				try {
 					// ==== invoke user interface logics
