@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.thrift.TBaseProcessor;
 
-import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelHandler;
 import io.netty.util.concurrent.DefaultExecutorServiceFactory;
 import io.nettythrift.protocol.DefaultProtocolFactorySelectorFactory;
 import io.nettythrift.protocol.ProtocolFactorySelectorFactory;
@@ -48,7 +48,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
 	private int maxConnections;
 	private int queuedResponseLimit = 16;
 	private NettyProcessorFactory nettyProcessorFactory;// hasDefault
-	private ChannelInitializer contextHandlerInstaller;// hasDefault
+	private ChannelHandler contextHandlerInstaller;// hasDefault
 	@SuppressWarnings("rawtypes")
 	private TBaseProcessor processor;
 	private ExecutorService executor;// hasDefault
@@ -163,7 +163,7 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
 	}
 
 	@SuppressWarnings("unchecked")
-	public T contextHandlerInstaller(ChannelInitializer contextHandlerInstaller) {
+	public T contextHandlerInstaller(ChannelHandler contextHandlerInstaller) {
 		this.contextHandlerInstaller = contextHandlerInstaller;
 		return (T) this;
 	}

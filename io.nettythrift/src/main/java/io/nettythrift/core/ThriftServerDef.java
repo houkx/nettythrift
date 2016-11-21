@@ -25,7 +25,7 @@ import org.apache.thrift.ProcessFunction;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TBaseProcessor;
 
-import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.nettythrift.protocol.ProtocolFactorySelector;
 import io.nettythrift.protocol.ProtocolFactorySelectorFactory;
@@ -44,7 +44,7 @@ public class ThriftServerDef {
 	public final int maxConnections;
 	public final int queuedResponseLimit;
 	public final NettyProcessor nettyProcessor;
-	public final ChannelInitializer codecInstaller;
+	public final ChannelHandler codecInstaller;
 	@SuppressWarnings("rawtypes")
 	public final Map<String, ProcessFunction<?, ? extends TBase>> processMap;
 	public final Object iface;
@@ -58,7 +58,7 @@ public class ThriftServerDef {
 
 	@SuppressWarnings("unchecked")
 	public ThriftServerDef(String name, int serverPort, int maxFrameSize, int maxConnections, int queuedResponseLimit,
-			NettyProcessorFactory nettyProcessorFactory, ChannelInitializer codecInstaller,
+			NettyProcessorFactory nettyProcessorFactory, ChannelHandler codecInstaller,
 			@SuppressWarnings("rawtypes") TBaseProcessor processor, ExecutorService executor, long clientIdleTimeout,
 			ProtocolFactorySelectorFactory protocolFactorySelectorFactory, HttpResourceHandler httpResourceHandler,
 			boolean voidMethodDirectReturn, HttpHandlerFactory httpHandlerFactory) {

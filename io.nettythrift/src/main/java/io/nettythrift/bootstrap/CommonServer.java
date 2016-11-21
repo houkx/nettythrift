@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -18,11 +18,11 @@ public class CommonServer implements java.io.Closeable {
 	private NioEventLoopGroup workerGroup;
 	private ChannelFuture f;
 
-	public void start(int port, ChannelInitializer channelHandler) throws Exception {
-		start(port, channelHandler, 0, 0);
+	public void start(int port, ChannelHandler channelInitializer) throws Exception {
+		start(port, channelInitializer, 0, 0);
 	}
 
-	public void start(int port, ChannelInitializer channelHandler, int bossThreads, int workThreads)
+	public void start(int port, ChannelHandler channelInitializer, int bossThreads, int workThreads)
 			throws Exception {
 		bossGroup = new NioEventLoopGroup(bossThreads);
 		workerGroup = new NioEventLoopGroup(workThreads);
@@ -38,7 +38,7 @@ public class CommonServer implements java.io.Closeable {
 					.option(ChannelOption.SO_REUSEADDR,
 							Boolean.parseBoolean(System.getProperty("so.REUSEADDR", "true")))
 					 .handler(new LoggingHandler(LogLevel.DEBUG))
-					.childHandler(channelHandler);
+					.childHandler(channelInitializer);
 			f = b.bind(port).sync();
 			logger.info("Server started and listen on port:{}", port);
 			f.channel().closeFuture().sync();
