@@ -6,7 +6,9 @@ package io.nettythrift.core;
 import java.util.Map;
 
 /**
- * @author nq
+ * Factory for create 'TrafficForecast'
+ * 
+ * @author HouKx
  *
  */
 public interface TrafficForecastFactory {
