@@ -47,16 +47,18 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
 	private int maxFrameSize = MAX_FRAME_SIZE;
 	private int maxConnections;
 	private int queuedResponseLimit = 16;
-	private NettyProcessorFactory nettyProcessorFactory;// hasDefault
-	private ChannelHandler contextHandlerInstaller;// hasDefault
 	@SuppressWarnings("rawtypes")
 	private TBaseProcessor processor;
+	private NettyProcessorFactory nettyProcessorFactory;// hasDefault
+	private ChannelHandler contextHandlerInstaller;// hasDefault
 	private ExecutorService executor;// hasDefault
-	private long clientIdleTimeout = 15000;
+	private long clientIdleTimeout = 15000;// hasDefault
 	private ProtocolFactorySelectorFactory protocolFactorySelectorFactory;// hasDefault
 	private HttpResourceHandler httpResourceHandler;// hasDefault
-	private boolean voidMethodDirectReturn;
+	private boolean voidMethodDirectReturn;// hasDefault:false
 	private HttpHandlerFactory httpHandlerFactory;// hasDefault
+	private TrafficForecastFactory trafficForecastFactory;// hasDefault
+	private LogicExecutionStatistics logicExecutionStatistics;// hasDefault
 	/**
 	 * The default maximum allowable size for a single incoming thrift request
 	 * or outgoing thrift response. A server can configure the actual maximum to
@@ -186,6 +188,18 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
 		return (T) this;
 	}
 
+	@SuppressWarnings("unchecked")
+	public T trafficForecastFactory(TrafficForecastFactory trafficForecast) {
+		this.trafficForecastFactory = trafficForecast;
+		return (T) this;
+	}
+
+	@SuppressWarnings("unchecked")
+	public T logicExecutionStatistics(LogicExecutionStatistics logicExecutionStatistics) {
+		this.logicExecutionStatistics = logicExecutionStatistics;
+		return (T) this;
+	}
+
 	/**
 	 * Build the ThriftServerDef
 	 */
@@ -203,9 +217,10 @@ public abstract class ThriftServerDefBuilderBase<T extends ThriftServerDefBuilde
 		if (httpResourceHandler == null) {
 			httpResourceHandler = new HttpFileResourceHandler();
 		}
-		return new ThriftServerDef(name, serverPort, maxFrameSize, maxConnections, queuedResponseLimit, nettyProcessorFactory,
-				contextHandlerInstaller, processor, executor, clientIdleTimeout, protocolFactorySelectorFactory,
-				httpResourceHandler, voidMethodDirectReturn, httpHandlerFactory);
+		return new ThriftServerDef(name, serverPort, maxFrameSize, maxConnections, queuedResponseLimit,
+				nettyProcessorFactory, contextHandlerInstaller, processor, executor, clientIdleTimeout,
+				protocolFactorySelectorFactory, httpResourceHandler, voidMethodDirectReturn, httpHandlerFactory,
+				trafficForecastFactory, logicExecutionStatistics);
 	}
 
 	/**

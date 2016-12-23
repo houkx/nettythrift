@@ -158,7 +158,7 @@ public class TNettyTransport extends TTransport {
 	}
 
 	public int getWrittenByteCount() {
-		return getOutputBuffer().writerIndex();
+		return out.writerIndex();
 	}
 
 	public boolean isHasFlush() {

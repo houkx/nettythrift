@@ -24,12 +24,12 @@ public class DefaultWriterListener implements WriteListener {
 
 	@Override
 	public void beforeWrite(TMessage msg) {
-		// TODO reuse message's buffer?
+		// reuse message's buffer when write? yes, we use the pool.
 		// voidMethod's return message is very short
 		message.getContent().release();
-		ByteBuf buf = ctx.alloc().buffer(serverDef.isVoidMethod(msg.name) ? 128 : 1024, serverDef.maxFrameSize)
-				;
-		logger.debug("beforeWrite: buf={}", buf);
+		int initialCapacity = serverDef.trafficForecast.getInitBytesForWrite(msg.name);
+//		logger.debug("initialCapacity = {} , msg = {}",initialCapacity, msg);
+		ByteBuf buf = ctx.alloc().buffer(initialCapacity, serverDef.maxFrameSize);
 		message.setContent(buf).beforeWrite(ctx);
 		transport.setOutputBuffer(buf);
 	}
@@ -38,6 +38,7 @@ public class DefaultWriterListener implements WriteListener {
 	public void afterWrite(TMessage msg, Throwable cause, int code) {
 		if (transport.isHasFlush()) {
 			message.write(ctx);
+			serverDef.trafficForecast.saveWritedBytes(msg.name, transport.getWrittenByteCount());
 		} else {
 			logger.error("fail to process! code={}", code, cause);
 		}

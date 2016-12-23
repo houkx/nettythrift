@@ -18,6 +18,8 @@ package io.nettythrift.core;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
@@ -31,7 +33,7 @@ import io.nettythrift.protocol.ProtocolFactorySelector;
 import io.nettythrift.protocol.ProtocolFactorySelectorFactory;
 
 /**
- * Descriptor for a Thrift Server. This defines a listener port that Nifty need
+ * Descriptor for a Thrift Server. This defines a listener port that Server need
  * to start a Thrift endpoint.
  */
 public class ThriftServerDef {
@@ -55,13 +57,16 @@ public class ThriftServerDef {
 	public final boolean voidMethodDirectReturn;
 	public final HttpHandlerFactory httpHandlerFactory;
 	private final int[] voidMethodHashes;
+	public final TrafficForecast trafficForecast;
+	public final LogicExecutionStatistics logicExecutionStatistics;
 
 	@SuppressWarnings("unchecked")
 	public ThriftServerDef(String name, int serverPort, int maxFrameSize, int maxConnections, int queuedResponseLimit,
 			NettyProcessorFactory nettyProcessorFactory, ChannelHandler codecInstaller,
 			@SuppressWarnings("rawtypes") TBaseProcessor processor, ExecutorService executor, long clientIdleTimeout,
 			ProtocolFactorySelectorFactory protocolFactorySelectorFactory, HttpResourceHandler httpResourceHandler,
-			boolean voidMethodDirectReturn, HttpHandlerFactory httpHandlerFactory) {
+			boolean voidMethodDirectReturn, HttpHandlerFactory httpHandlerFactory, TrafficForecastFactory trafficForecastFac,
+			LogicExecutionStatistics _logicExecutionStatistics) {
 		super();
 		this.name = name;
 		this.serverPort = serverPort;
@@ -79,7 +84,7 @@ public class ThriftServerDef {
 		}
 		if (codecInstaller == null) {
 			codecInstaller = new DefaultChannelInitializer<SocketChannel>(this);
-		} 
+		}
 		this.nettyProcessor = nettyProcessorFactory.create(this);
 		this.codecInstaller = codecInstaller;
 		Object iface = null;
@@ -98,14 +103,19 @@ public class ThriftServerDef {
 				break;
 			}
 		}
+		Map<String, Integer> inits = Collections.emptyMap();
 		int[] voidMethodHashes = null;
 		if (ifaceClass != null) {
+			inits = new HashMap<>();
 			Method[] ms = ifaceClass.getMethods();
 			int len = 0;
 			int[] hashes = new int[ms.length];
 			for (Method m : ms) {
 				if (m.getReturnType() == void.class) {
 					hashes[len++] = m.getName().hashCode();
+					inits.put(m.getName(), 128);
+				} else {
+					inits.put(m.getName(), 1024);
 				}
 			}
 			if (len > 0) {
@@ -118,6 +128,11 @@ public class ThriftServerDef {
 				Arrays.sort(voidMethodHashes);
 			}
 		}
+		this.trafficForecast = trafficForecastFac != null ? trafficForecastFac.create(inits)
+				: new DefaultTrafficForecastImpl(inits, Integer.parseInt(System.getProperty("trafficForecast.logmax", "100")));
+		this.logicExecutionStatistics = _logicExecutionStatistics != null ? _logicExecutionStatistics
+				: new DefaultLogicExecutionStatisticsImpl(Integer.parseInt(System.getProperty("ioexe.threshold", "5")),
+						Integer.parseInt(System.getProperty("ioexe.logmax", "100")));
 		this.voidMethodHashes = voidMethodHashes;
 		this.iface = iface;
 		protocolFactorySelector = protocolFactorySelectorFactory.createProtocolFactorySelector(ifaceClass);

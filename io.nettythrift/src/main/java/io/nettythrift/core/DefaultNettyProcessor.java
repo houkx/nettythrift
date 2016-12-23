@@ -31,12 +31,12 @@ public class DefaultNettyProcessor implements NettyProcessor {
 	public DefaultNettyProcessor(ThriftServerDef serverDef) {
 		this.serverDef = serverDef;
 	}
-	
+
 	// NOTE: invoked in IO thread
 	protected boolean filterBeforeRead(ChannelHandlerContext ctx, TMessage msg) {
 		return false;
 	}
-	
+
 	// NOTE: invoked in business thread
 	protected boolean filterBeforeWrite(ChannelHandlerContext ctx, TMessage msg,
 			@SuppressWarnings("rawtypes") TBase args, boolean filterBeforeRead) {
@@ -67,14 +67,9 @@ public class DefaultNettyProcessor implements NettyProcessor {
 		if (fn == null) {
 			TProtocolUtil.skip(in, TType.STRUCT);
 			in.readMessageEnd();
-			onComplete.beforeWrite(msg);
 			TApplicationException x = new TApplicationException(TApplicationException.UNKNOWN_METHOD,
 					"Invalid method name: '" + msg.name + "'");
-			out.writeMessageBegin(new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid));
-			x.write(out);
-			out.writeMessageEnd();
-			out.getTransport().flush();
-			onComplete.afterWrite(msg, x, TMessageType.EXCEPTION);
+			writeException(out, msg, onComplete, x);
 			return;
 		}
 		final TBase args = fn.getEmptyArgsInstance();
@@ -82,18 +77,14 @@ public class DefaultNettyProcessor implements NettyProcessor {
 			args.read(in);
 		} catch (TProtocolException e) {
 			in.readMessageEnd();
-			onComplete.beforeWrite(msg);
 			TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
-			out.writeMessageBegin(new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid));
-			x.write(out);
-			out.writeMessageEnd();
-			out.getTransport().flush();
-			onComplete.afterWrite(msg, e, TMessageType.EXCEPTION);
+			writeException(out, msg, onComplete, x);
 			return;
 		}
 		in.readMessageEnd();
 		//
 		// === read request end ===
+
 		//
 		// if a method return 'void', try directReturn,this could reduce a
 		// ThreadSwitch (from UserThread to NIOThread), but exception throws by
@@ -101,20 +92,12 @@ public class DefaultNettyProcessor implements NettyProcessor {
 		//
 		if (serverDef.voidMethodDirectReturn && serverDef.isVoidMethod(msg.name)) {
 			logger.debug("direct return for voidMethod: {}", msg.name);
-			onComplete.beforeWrite(msg);
-			out.writeMessageBegin(new TMessage(msg.name, TMessageType.REPLY, msg.seqid));
-			//
-			out.writeStructBegin(null);
-			out.writeFieldStop();
-			out.writeStructEnd();
-			//
-			out.writeMessageEnd();
-			out.getTransport().flush();
-			onComplete.afterWrite(msg, null, TMessageType.REPLY);
-			serverDef.executor.submit(new Runnable() {
+			writeResult(out, msg, onComplete, null);
+			Runnable task = new Runnable() {
 				@SuppressWarnings("unchecked")
 				@Override
 				public void run() {
+					long startTime = System.currentTimeMillis();
 					boolean filterBeforeWrite = filterBeforeWrite(ctx, msg, args, filterBeforeRead);
 					try {
 						// ==== invoke user interface logics
@@ -122,10 +105,18 @@ public class DefaultNettyProcessor implements NettyProcessor {
 					} catch (final TException tex) {
 						logger.error("Internal error processing " + msg.name, tex);
 					} finally {
+						serverDef.logicExecutionStatistics.saveExecutionMillTime(msg.name,
+								(int) (System.currentTimeMillis() - startTime));
 						filterAfterWrite(ctx, msg, null, filterBeforeWrite);
 					}
 				}
-			});
+			};
+			if (serverDef.logicExecutionStatistics.shouldExecuteInIOThread(msg.name)) {
+				logger.debug("execute in IO thread: interface={}", msg);
+				task.run();
+			} else {
+				serverDef.executor.submit(task);
+			}
 			return;
 		}
 		invokeAndWrite(ctx, out, msg, filterBeforeRead, fn, args, onComplete);
@@ -135,10 +126,34 @@ public class DefaultNettyProcessor implements NettyProcessor {
 	protected void invokeAndWrite(final ChannelHandlerContext ctx, final TProtocol out, final TMessage msg,
 			final boolean filterBeforeRead, final ProcessFunction fn, final TBase args, final WriteListener onComplete)
 			throws InterruptedException, ExecutionException {
+
+		if (serverDef.logicExecutionStatistics.shouldExecuteInIOThread(msg.name)) {
+			logger.debug("execute in IO thread: interface={}", msg);
+			long startTime = System.currentTimeMillis();
+			boolean filterBeforeWrite = filterBeforeWrite(ctx, msg, args, filterBeforeRead);
+			TBase result = null;
+			try {
+				// ==== invoke user interface logics
+				result = fn.getResult(serverDef.iface, args);
+			} catch (final TException tex) {
+				logger.error("Internal error processing " + msg.name, tex);
+				final TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR,
+						"Internal error processing " + msg.name);
+				writeException(out, msg, onComplete, x);
+				return;
+			} finally {
+				serverDef.logicExecutionStatistics.saveExecutionMillTime(msg.name,
+						(int) (System.currentTimeMillis() - startTime));
+				filterAfterWrite(ctx, msg, result, filterBeforeWrite);
+			}
+			writeResult(out, msg, onComplete, result);
+			return;
+		}
 		// invoke may be in a User Thread
 		serverDef.executor.submit(new Runnable() {
 			@Override
 			public void run() {
+				long startTime = System.currentTimeMillis();
 				boolean filterBeforeWrite = filterBeforeWrite(ctx, msg, args, filterBeforeRead);
 				TBase result = null;
 				try {
@@ -152,21 +167,13 @@ public class DefaultNettyProcessor implements NettyProcessor {
 					ctx.executor().submit(new Runnable() {
 						@Override
 						public void run() {
-							Throwable cause = null;
-							try {
-								onComplete.beforeWrite(msg);
-								out.writeMessageBegin(new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid));
-								x.write(out);
-								out.writeMessageEnd();
-								out.getTransport().flush();
-							} catch (Throwable e) {
-								cause = e;
-							}
-							onComplete.afterWrite(msg, cause, TMessageType.EXCEPTION);
+							writeException(out, msg, onComplete, x);
 						}
 					});
 					return;
 				} finally {
+					serverDef.logicExecutionStatistics.saveExecutionMillTime(msg.name,
+							(int) (System.currentTimeMillis() - startTime));
 					filterAfterWrite(ctx, msg, result, filterBeforeWrite);
 				}
 				final TBase RESULT = result;
@@ -174,24 +181,48 @@ public class DefaultNettyProcessor implements NettyProcessor {
 				ctx.executor().submit(new Runnable() {
 					@Override
 					public void run() {
-						try {
-							onComplete.beforeWrite(msg);
-							// if (!isOneway()) {
-							out.writeMessageBegin(new TMessage(msg.name, TMessageType.REPLY, msg.seqid));
-							if (RESULT != null) {
-								RESULT.write(out);
-							}
-							out.writeMessageEnd();
-							out.getTransport().flush();
-							// }
-							onComplete.afterWrite(msg, null, TMessageType.REPLY);
-						} catch (Throwable e) {
-							onComplete.afterWrite(msg, e, TMessageType.EXCEPTION);
-						}
+						writeResult(out, msg, onComplete, RESULT);
 					}
 				});
 			}
 		});
 	}
 
+
+	private void writeResult(final TProtocol out, final TMessage msg, final WriteListener onComplete,
+			@SuppressWarnings("rawtypes") final TBase result) {
+		try {
+			onComplete.beforeWrite(msg);
+			// if (!isOneway()) {
+			out.writeMessageBegin(new TMessage(msg.name, TMessageType.REPLY, msg.seqid));
+			if (result != null) {
+				result.write(out);
+			} else {
+				out.writeStructBegin(null);
+				out.writeFieldStop();
+				out.writeStructEnd();
+			}
+			out.writeMessageEnd();
+			out.getTransport().flush();
+			// }
+			onComplete.afterWrite(msg, null, TMessageType.REPLY);
+		} catch (Throwable e) {
+			onComplete.afterWrite(msg, e, TMessageType.EXCEPTION);
+		}
+	}
+
+	private void writeException(final TProtocol out, final TMessage msg, final WriteListener onComplete,
+			final TApplicationException x) {
+		Throwable cause = null;
+		try {
+			onComplete.beforeWrite(msg);
+			out.writeMessageBegin(new TMessage(msg.name, TMessageType.EXCEPTION, msg.seqid));
+			x.write(out);
+			out.writeMessageEnd();
+			out.getTransport().flush();
+		} catch (Throwable e) {
+			cause = e;
+		}
+		onComplete.afterWrite(msg, cause, TMessageType.EXCEPTION);
+	}
 }
