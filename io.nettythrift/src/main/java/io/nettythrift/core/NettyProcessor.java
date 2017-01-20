@@ -13,6 +13,6 @@ import io.netty.channel.ChannelHandlerContext;
  */
 public interface NettyProcessor {
 
-	void process(ChannelHandlerContext ctx, TProtocol in, TProtocol out, WriteListener onComplete)
+	void process(ChannelHandlerContext ctx, TProtocol in, TProtocol out, WriterHandler onComplete)
 			throws Exception;
 }

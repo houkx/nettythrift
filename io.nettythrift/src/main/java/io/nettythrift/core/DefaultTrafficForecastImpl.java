@@ -7,6 +7,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.thrift.TBase;
+
 /**
  * @author HouKx
  *
@@ -30,7 +32,8 @@ public class DefaultTrafficForecastImpl implements TrafficForecast {
 		return 1024;
 	}
 
-	public void saveWritedBytes(String method, int writedBytes) {
+	@SuppressWarnings("rawtypes")
+	public void saveWritedBytes(String method, int writedBytes, TBase args, TBase result) {
 		MethodTraffic mt = traffics.get(method.hashCode());
 		if (mt != null) {
 			mt.save(writedBytes);
