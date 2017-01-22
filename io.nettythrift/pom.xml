@@ -84,11 +84,7 @@
 							<addClasspath>true</addClasspath>
 							<classpathPrefix>lib/</classpathPrefix>
 							<useUniqueVersions>false</useUniqueVersions>
-							<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
 						</manifest>
-						<manifestEntries>
-							<engine-impl>com.nq.engine.NettyServerEngine</engine-impl>
-						</manifestEntries>
 					</archive>
 					<executions>
 						<configuration>

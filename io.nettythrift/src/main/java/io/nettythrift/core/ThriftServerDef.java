@@ -95,12 +95,22 @@ public class ThriftServerDef {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		Class<?>[] ifcs = iface.getClass().getInterfaces();
 		Class<?> ifaceClass = null;
-		for (Class<?> c : ifcs) {
-			if (c.getEnclosingClass() != null && c.getSimpleName().equals("Iface")) {
-				ifaceClass = c;
-				break;
+		{
+			Class<?> clazz = iface.getClass();
+			boolean find = false;
+			while (!find && clazz != null) {
+				Class<?>[] ifcs = clazz.getInterfaces();
+				if (ifcs != null && ifcs.length > 0) {
+					for (Class<?> c : ifcs) {
+						if (c.getEnclosingClass() != null && c.getSimpleName().equals("Iface")) {
+							ifaceClass = c;
+							find = true;
+							break;
+						}
+					}
+				}
+				clazz = clazz.getSuperclass();
 			}
 		}
 		Map<String, Integer> inits = Collections.emptyMap();
