@@ -95,10 +95,14 @@ public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpReques
 		} else {
 			queryStr = "";
 		}
-		logger.debug("decode queryStr ={}, method={}, msg={}", queryStr, request.method(), request);
+		HttpMethod method = request.method();
+		logger.debug("decode queryStr ={}, method={}, msg={}", queryStr, method, request);
+		if (directHandleMethod(ctx, request, method)) {
+			return;
+		}
 		ByteBuf content;
 		if (queryStr.length() == 0) {
-			if (HttpMethod.GET.equals(request.method())) {
+			if (HttpMethod.GET.equals(method)) {
 				handleHttpHomePage(ctx, request);
 				return;
 			}
@@ -133,6 +137,39 @@ public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpReques
 		ctx.fireUserEventTriggered(event);
 	}
 
+	private boolean directHandleMethod(ChannelHandlerContext ctx, FullHttpRequest request, HttpMethod method) {
+		if (method.equals(HttpMethod.GET) || method.equals(HttpMethod.POST)) {
+			return false;
+		}
+		// 处理 OPTIONS 请求
+		HttpResponseStatus status = HttpResponseStatus.OK;
+		boolean invalid = false;
+		if (!method.equals(HttpMethod.OPTIONS)) {
+			invalid = true;
+			status = HttpResponseStatus.METHOD_NOT_ALLOWED;
+		}
+		DefaultFullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, status, Unpooled.EMPTY_BUFFER);
+		HttpHeaders headers = response.headers();
+		// headers.set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS,
+		// "X-Requested-With, accept, origin, content-type");
+		headers.set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "X-Requested-With, content-type");
+		headers.set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET,POST,OPTIONS");
+		headers.set(HttpHeaderNames.SERVER, "Netty5");
+		if (invalid) {
+			headers.set("Client-Warning", "Invalid Method");
+		}
+		boolean keepAlive = HttpHeaderUtil.isKeepAlive(request);
+		if (keepAlive) {
+			response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+		}
+		ctx.write(response);
+		ChannelFuture future = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+		if (!keepAlive) {
+			future.addListener(ChannelFutureListener.CLOSE);
+		}
+		return true;
+	}
+
 	protected static final ThriftMessageWrapper thriftMessageWrapperNormal = new BaseHttpThriftMessageWrapperImpl();
 	protected static final ThriftMessageWrapper thriftMessageWrapperKeepAlive = new BaseHttpThriftMessageWrapperImpl() {
 		protected void filterResponse(DefaultFullHttpResponse httpResp, ThriftMessage msg) {
@@ -150,7 +187,7 @@ public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpReques
 			HttpResponseStatus status = HttpResponseStatus.OK;
 			DefaultFullHttpResponse httpResp = new DefaultFullHttpResponse(HTTP_1_1, status, msg.getContent());
 			HttpHeaders headers = httpResp.headers();
-			headers.set(HttpHeaderNames.CONTENT_TYPE, "application/x-thrift");
+			headers.set(HttpHeaderNames.CONTENT_TYPE, "application/json");
 			headers.set(HttpHeaderNames.SERVER, "Netty5");
 			filterResponse(httpResp, msg);
 			return httpResp;
