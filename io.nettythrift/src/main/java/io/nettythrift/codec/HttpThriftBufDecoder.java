@@ -4,7 +4,6 @@
 package io.nettythrift.codec;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
@@ -22,7 +21,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
 import io.netty.channel.DefaultFileRegion;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -37,6 +38,14 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
+import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
+import io.netty.util.AttributeKey;
 import io.netty.util.CharsetUtil;
 import io.nettythrift.core.ThriftMessage;
 import io.nettythrift.core.ThriftMessageWrapper;
@@ -47,17 +56,16 @@ import io.nettythrift.core.ThriftServerDef;
  */
 public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpRequest> {
 	private static Logger logger = LoggerFactory.getLogger(HttpThriftBufDecoder.class);
+	/**
+	 * tag current channel is in WebSocket connection
+	 */
+	public static final AttributeKey<Boolean> KEY_WebsocketChannel = AttributeKey.valueOf("#WsChannel");
 
 	private final ThriftServerDef serverDef;
 
 	public HttpThriftBufDecoder(ThriftServerDef serverDef) {
 		super();
 		this.serverDef = serverDef;
-	}
-
-	protected void handleWebSocket(ChannelHandlerContext ctx, FullHttpRequest request) {
-		// default: not support
-		sendHttpResponse(ctx, request, new DefaultFullHttpResponse(HTTP_1_1, FORBIDDEN));
 	}
 
 	@Override
@@ -278,5 +286,88 @@ public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpReques
 	protected ByteBuf homeBuffers() {
 		return Unpooled.wrappedBuffer(
 				"<html><head><title>Netty5Thrift</title></head><body><h1>Welcome!</h1></body></html>".getBytes());
+	}
+
+	/**
+	 * handle WebSocket request,then, the the RPC could happen in WebSocket.
+	 * 
+	 * @param ctx
+	 * @param request
+	 */
+	protected void handleWebSocket(final ChannelHandlerContext ctx, FullHttpRequest request) {
+		if (logger.isDebugEnabled()) {
+			logger.debug("handleWebSocket request: uri={}", request.uri());
+		}
+		// Handshake
+		WebSocketServerHandshakerFactory wsFactory = new WebSocketServerHandshakerFactory(request.uri(), null, true);
+		WebSocketServerHandshaker handshaker = wsFactory.newHandshaker(request);
+		if (handshaker == null) {
+			WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
+			return;
+		}
+		ChannelFutureListener callback = websocketHandshakeListener(ctx, request);
+		ChannelFuture future = handshaker.handshake(ctx.channel(), request);
+		if (callback != null) {
+			future.addListener(callback);
+		}
+		ChannelPipeline pipe = ctx.pipeline();
+		if (pipe.get(WebsocketFrameHandler.class) == null) {
+			pipe.addAfter(ctx.name(), "wsFrameHandler", new WebsocketFrameHandler(handshaker));
+			ChannelHandler handlerAws = pipe.get(AwsProxyProtocolDecoder.class);
+			if (handlerAws != null) {
+				pipe.remove(handlerAws);
+			}
+			pipe.remove(ctx.name());// Remove current Handler
+		}
+	}
+
+	protected ChannelFutureListener websocketHandshakeListener(final ChannelHandlerContext ctx,
+			FullHttpRequest request) {
+		return null;
+	}
+
+	protected static class TextWebSocketFrameThriftMessageWrapper extends ThriftMessageWrapper {
+		@Override
+		public Object wrapMessage(ChannelHandlerContext ctx, ThriftMessage msg) {
+			// wrap the message to a TextWebSocketFrame
+			return new TextWebSocketFrame(msg.getContent());
+		}
+	}
+
+	protected static class WebsocketFrameHandler extends MessageToMessageDecoder<WebSocketFrame> {
+		final WebSocketServerHandshaker handshaker;
+
+		protected WebsocketFrameHandler(WebSocketServerHandshaker handshaker) {
+			this.handshaker = handshaker;
+		}
+
+		@Override
+		protected void decode(ChannelHandlerContext ctx, WebSocketFrame frame, List<Object> out) throws Exception {
+			if (frame instanceof CloseWebSocketFrame) {
+				handshaker.close(ctx.channel(), (CloseWebSocketFrame) frame.retain());
+				return;
+			}
+			if (frame instanceof PingWebSocketFrame) {
+				out.add(new PongWebSocketFrame(frame.content().retain()));
+				return;
+			}
+			if (frame instanceof PongWebSocketFrame) {
+				out.add(new PongWebSocketFrame(frame.content().retain()));
+				return;
+			}
+			if (!(frame instanceof TextWebSocketFrame)) {
+				throw new UnsupportedOperationException(
+						String.format(" frame type '%s' not supported", frame.getClass().getName()));
+			}
+			// extract the message
+			String message = ((TextWebSocketFrame) frame).text();
+			logger.debug("ws '{}' received: {}", ctx.channel(), message);
+			byte[] bytes = message.getBytes();
+			ByteBuf content = Unpooled.wrappedBuffer(bytes);
+			out.add(content.retain());
+			ctx.fireUserEventTriggered(new TextWebSocketFrameThriftMessageWrapper());
+			ctx.attr(KEY_WebsocketChannel).set(true);
+		}
+
 	}
 }
