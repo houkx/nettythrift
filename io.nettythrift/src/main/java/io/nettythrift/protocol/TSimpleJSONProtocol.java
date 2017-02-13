@@ -481,7 +481,7 @@ public class TSimpleJSONProtocol extends TProtocol {
 		String className = String.format("%s$%s", ifaceClass.getEnclosingClass().getName(), classSimpleName);
 		if (ifaceClass != null) {
 			try {
-				result = Class.forName(className);
+				result = Class.forName(className, false, ifaceClass.getClassLoader());
 				tBaseclassCache.putIfAbsent(classSimpleName, result);
 				return result;
 			} catch (Exception e) {
