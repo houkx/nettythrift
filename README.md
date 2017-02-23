@@ -1,5 +1,5 @@
 # nettythrift
-A Java Server IO framework  use netty and thrift.
+A Java Server IO framework use netty and thrift.
 
 # Server Example
 
@@ -29,8 +29,8 @@ A Java Server IO framework  use netty and thrift.
  
 
 # The Client
-   Client Example:
+  Client Example:
     see the TestCase in project: io.nettythrift
     or the project client.* ; 
-  
-    there is a also a Simple Connection Pool in project: client.framedCommpact
+  the project "client.json" is A Client use Http and TSimpleJSONProtocol.  
+  there is a also a Simple Connection Pool in project: client.framedCommpact
