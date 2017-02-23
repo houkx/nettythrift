@@ -33,4 +33,4 @@ A Java Server IO framework  use netty and thrift.
     see the TestCase in project: io.nettythrift
     or the project client.* ; 
   
-    there is a aslo a Simple Connection Pool in project: client.framedCommpact
+    there is a also a Simple Connection Pool in project: client.framedCommpact
