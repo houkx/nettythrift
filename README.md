@@ -18,12 +18,12 @@ A Java Server IO framework use netty and thrift.
       // Create the processor, you no need give a TProtocolFactory here,the protocol is dynamic.
       TBaseProcessor processor = new MyService.Processor<>(serviceInterface);
     
-  		ThriftServerDefBuilder builder = ThriftServerDef.newBuilder().listen(port)//
+      ThriftServerDef serverDef = ThriftServerDef.newBuilder().listen(port)//
 				.withProcessor(processor)//
 				.using(threadPoolExecutor)//
 				.clientIdleTimeout(TimeUnit.SECONDS.toMillis(60))//
-				;
-       ServerBootstrap server = new ServerBootstrap(builder.build());
+				.build();
+       ServerBootstrap server = new ServerBootstrap(serverDef);
        server.start();// Start Server
     }
  
