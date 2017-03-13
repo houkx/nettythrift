@@ -24,19 +24,27 @@ public class ThriftMessageEncoder extends SimpleChannelInboundHandler<ThriftMess
 	private final ThriftServerDef serverDef;
 
 	public ThriftMessageEncoder(ThriftServerDef serverDef) {
+		super(false);
 		this.serverDef = serverDef;
 	}
 
 	@Override
-	protected void messageReceived(final ChannelHandlerContext ctx, final ThriftMessage message) throws Exception {
+	protected void messageReceived(ChannelHandlerContext ctx, ThriftMessage message) throws Exception {
 		ByteBuf buffer = message.getContent();
 		logger.debug("msg.content:: {}", buffer);
-
-		final TNettyTransport transport = new TNettyTransport(ctx.channel(), buffer);
-		TProtocolFactory protocolFactory = message.getProtocolFactory();
-		TProtocol protocol = protocolFactory.getProtocol(transport);
-		serverDef.nettyProcessor.process(ctx, protocol, protocol,
-				new DefaultWriterListener(message, transport, ctx, serverDef));
+		try {
+			TNettyTransport transport = new TNettyTransport(ctx.channel(), buffer);
+			TProtocolFactory protocolFactory = message.getProtocolFactory();
+			TProtocol protocol = protocolFactory.getProtocol(transport);
+			serverDef.nettyProcessor.process(ctx, protocol, protocol,
+					new DefaultWriterListener(message, transport, ctx, serverDef));
+		} catch (Throwable ex) {
+			int refCount = buffer.refCnt();
+			if (refCount > 0) {
+				buffer.release(refCount);
+			}
+			throw ex;
+		}
 	}
 
 }

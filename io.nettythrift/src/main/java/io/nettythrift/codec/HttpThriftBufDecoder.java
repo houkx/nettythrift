@@ -52,6 +52,14 @@ import io.nettythrift.core.ThriftMessageWrapper;
 import io.nettythrift.core.ThriftServerDef;
 
 /**
+ * 主要功能:
+ * <ul>
+ * <li>负责提取http请求中的thrift协议部分(POST请求则认为body内容全部是thrift内容,GET请求则尝试把'?'之后的内容解析为thrift内容)</li>
+ * <li>兼顾部分静态文件请求，后缀含'.'的（如/host/1.html）认为是静态文件请求</li>
+ * <li>处理websocket请求，认为发送的普通文本是thrift请求，并标记上下文属性 标明当前是websocket Channel</li>
+ * <li>只要是thrift协议，都会发送一个UserEvent,一个ThrfitMessageWraper对象</li>
+ * </ul>
+ * 
  * @author HouKx
  */
 public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpRequest> {
@@ -114,7 +122,7 @@ public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpReques
 				handleHttpHomePage(ctx, request);
 				return;
 			}
-			content = request.content();
+			content = request.content().retain();
 		} else {
 			queryStr = URLDecoder.decode(queryStr, "UTF-8");
 			int strLen = queryStr.length();
@@ -136,10 +144,11 @@ public class HttpThriftBufDecoder extends MessageToMessageDecoder<FullHttpReques
 			byte[] bytes = queryStr.getBytes();
 			// System.err.println("URI: bytes[0] = "+bytes[0]+", len =
 			// "+bytes.length);
-			content = Unpooled.wrappedBuffer(bytes);
+			content = ctx.alloc().buffer(bytes.length);
+			content.writeBytes(bytes);
 		}
 		logger.debug("content.size = " + content.readableBytes());
-		out.add(content.retain());
+		out.add(content);
 		boolean alive = HttpHeaderUtil.isKeepAlive(request);
 		Object event = alive ? thriftMessageWrapperKeepAlive : thriftMessageWrapperNormal;
 		ctx.fireUserEventTriggered(event);

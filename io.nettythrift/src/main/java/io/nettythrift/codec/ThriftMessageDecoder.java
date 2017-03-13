@@ -18,6 +18,8 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
+ * 负责把用户请求的thrift协议内容解析为一个ThriftMessage 对象
+ * 
  * @author HouKx
  */
 public class ThriftMessageDecoder extends ByteToMessageDecoder {
@@ -52,16 +54,13 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
 		if (ctx.channel().isActive()) {
-//			logger.debug("===== decode() Active=====");
 			ThriftMessage msg = decodeMessage(ctx, in);
 			logger.debug("decodeMessage() return:{}", msg);
 			if (msg != null) {
 				msg.getContent().retain();
 				out.add(msg);
 			}
-		}/* else {
-			logger.debug("===== decode() inActive=====");
-		}*/
+		}
 	}
 
 	protected ThriftMessage decodeMessage(ChannelHandlerContext ctx, ByteBuf buffer)
@@ -149,12 +148,6 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 
 	protected ByteBuf tryDecodeUnframedMessage(ChannelHandlerContext ctx, Channel channel, ByteBuf buffer,
 			TProtocolFactory inputProtocolFactory) throws Exception {
-//		System.out.println("*** 解析流式协议");
-		short headCode = buffer.getShort(buffer.readerIndex());
-		if (headCode > 23300 && ']' != buffer.getByte(buffer.readableBytes() - 1)) {
-//			System.out.println("JSON 协议已经确定请求不完整，直接返回null");
-			return null;
-		}
 		// Perform a trial decode, skipping through
 		// the fields, to see whether we have an entire message available.
 
@@ -174,15 +167,12 @@ public class ThriftMessageDecoder extends ByteToMessageDecoder {
 
 			messageLength = decodeAttemptTransport.getReadByteCount() - initialReadBytes;
 		} catch (TTransportException e) {
-//			System.out.println("** 不完整的msg: TTransportException");
 			// No complete message was decoded: ran out of bytes
 			return null;
 		} catch (IndexOutOfBoundsException e) {
-//			System.out.println("** 不完整的msg: IndexOutOfBoundsException");
 			// No complete message was decoded: ran out of bytes
 			return null;
 		} catch (TProtocolException e) {
-//			System.out.println("** 不完整的msg: TProtocolException");
 			// No complete message was decoded: ran out of bytes
 			return null;
 		} finally {

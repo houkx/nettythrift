@@ -23,11 +23,16 @@ public class DefaultWriterListener implements WriterHandler {
 		this.serverDef = serverDef;
 	}
 
+	@SuppressWarnings({ "rawtypes" })
 	@Override
 	public void beforeWrite(TMessage msg, TBase args, TBase result) {
 		// reuse message's buffer when write? yes, we use the pool.
+		ByteBuf readedBuf = message.getContent();
+		int refCount = readedBuf.refCnt();
+		if (refCount > 0) {
+			readedBuf.release(refCount);
+		}
 		// voidMethod's return message is very short
-		message.getContent().release();
 		int initialCapacity = serverDef.trafficForecast.getInitBytesForWrite(msg.name);
 		// logger.debug("initialCapacity = {} , msg = {}",initialCapacity, msg);
 		ByteBuf buf = ctx.alloc().buffer(initialCapacity, serverDef.maxFrameSize);
@@ -35,12 +40,14 @@ public class DefaultWriterListener implements WriterHandler {
 		transport.setOutputBuffer(buf);
 	}
 
+	@SuppressWarnings({ "rawtypes" })
 	@Override
 	public void afterWrite(TMessage msg, Throwable cause, int code, TBase args, TBase result) {
 		if (transport.isHasFlush()) {
 			message.write(ctx);
 			serverDef.trafficForecast.saveWritedBytes(msg.name, transport.getWrittenByteCount(), args, result);
 		} else {
+			message.getContent().release();
 			logger.error("fail to process! code={}", code, cause);
 		}
 	}

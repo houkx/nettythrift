@@ -4,11 +4,11 @@
 package io.nettythrift.core;
 
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.apache.thrift.ProcessFunction;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TBase;
-import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TMessage;
 import org.apache.thrift.protocol.TMessageType;
 import org.apache.thrift.protocol.TProtocol;
@@ -102,7 +102,7 @@ public class DefaultNettyProcessor implements NettyProcessor {
 					try {
 						// ==== invoke user interface logics
 						fn.getResult(serverDef.iface, args);
-					} catch (final TException tex) {
+					} catch (Exception tex) {
 						logger.error("Internal error processing " + msg.name, tex);
 					} finally {
 						serverDef.logicExecutionStatistics.saveExecutionMillTime(msg.name,
@@ -115,7 +115,7 @@ public class DefaultNettyProcessor implements NettyProcessor {
 				logger.debug("execute in IO thread: interface={}", msg);
 				task.run();
 			} else {
-				serverDef.executor.submit(task);
+				sumbitTask(out, msg, onComplete, task);
 			}
 			return;
 		}
@@ -135,10 +135,10 @@ public class DefaultNettyProcessor implements NettyProcessor {
 			try {
 				// ==== invoke user interface logics
 				result = fn.getResult(serverDef.iface, args);
-			} catch (final TException tex) {
-				logger.error("Internal error processing " + msg.name, tex);
-				final TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR,
-						"Internal error processing " + msg.name);
+			} catch (Throwable tex) {
+				String error = "Internal error processing " + msg.name;
+				logger.error(error, tex);
+				final TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, error);
 				writeException(out, msg, onComplete, x, args);
 				return;
 			} finally {
@@ -150,7 +150,7 @@ public class DefaultNettyProcessor implements NettyProcessor {
 			return;
 		}
 		// invoke may be in a User Thread
-		serverDef.executor.submit(new Runnable() {
+		sumbitTask(out, msg, onComplete, new Runnable() {
 			@Override
 			public void run() {
 				long startTime = System.currentTimeMillis();
@@ -159,10 +159,11 @@ public class DefaultNettyProcessor implements NettyProcessor {
 				try {
 					// ==== invoke user interface logics
 					result = fn.getResult(serverDef.iface, args);
-				} catch (final TException tex) {
-					logger.error("Internal error processing " + msg.name, tex);
+				} catch (Throwable tex) {
+					String error = "Internal error processing " + msg.name;
+					logger.error(error, tex);
 					final TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR,
-							"Internal error processing " + msg.name);
+							error);
 					// switch to NIO thread to write
 					ctx.executor().submit(new Runnable() {
 						@Override
@@ -210,7 +211,18 @@ public class DefaultNettyProcessor implements NettyProcessor {
 			onComplete.afterWrite(msg, e, TMessageType.EXCEPTION, args, result);
 		}
 	}
+	
+	private void sumbitTask(TProtocol out, final TMessage msg, final WriterHandler onComplete, Runnable task){
+		try {
+			serverDef.executor.submit(task);
+		} catch (RejectedExecutionException e) {
+			TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "TooBusy");
+			writeException(out, msg, onComplete, x, null);
+			logger.error("RejectedExecutionException: "+e.getLocalizedMessage());
+		}
+	}
 
+	@SuppressWarnings({ "rawtypes" })
 	private void writeException(final TProtocol out, final TMessage msg, final WriterHandler onComplete,
 			final TApplicationException x, TBase args) {
 		Throwable cause = null;
