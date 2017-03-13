@@ -8,7 +8,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.thrift.ProcessFunction;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TBase;
-import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TMessage;
 import org.apache.thrift.protocol.TMessageType;
 import org.apache.thrift.protocol.TProtocol;
@@ -102,7 +101,7 @@ public class DefaultNettyProcessor implements NettyProcessor {
 					try {
 						// ==== invoke user interface logics
 						fn.getResult(serverDef.iface, args);
-					} catch (final TException tex) {
+					} catch (Exception tex) {
 						logger.error("Internal error processing " + msg.name, tex);
 					} finally {
 						serverDef.logicExecutionStatistics.saveExecutionMillTime(msg.name,
@@ -135,10 +134,10 @@ public class DefaultNettyProcessor implements NettyProcessor {
 			try {
 				// ==== invoke user interface logics
 				result = fn.getResult(serverDef.iface, args);
-			} catch (final TException tex) {
-				logger.error("Internal error processing " + msg.name, tex);
-				final TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR,
-						"Internal error processing " + msg.name);
+			} catch (Throwable tex) {
+				String error = "Internal error processing " + msg.name;
+				logger.error(error, tex);
+				final TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, error);
 				writeException(out, msg, onComplete, x, args);
 				return;
 			} finally {
@@ -159,10 +158,11 @@ public class DefaultNettyProcessor implements NettyProcessor {
 				try {
 					// ==== invoke user interface logics
 					result = fn.getResult(serverDef.iface, args);
-				} catch (final TException tex) {
-					logger.error("Internal error processing " + msg.name, tex);
+				} catch (Throwable tex) {
+					String error = "Internal error processing " + msg.name;
+					logger.error(error, tex);
 					final TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR,
-							"Internal error processing " + msg.name);
+							error);
 					// switch to NIO thread to write
 					ctx.executor().submit(new Runnable() {
 						@Override
@@ -211,6 +211,7 @@ public class DefaultNettyProcessor implements NettyProcessor {
 		}
 	}
 
+	@SuppressWarnings({ "rawtypes" })
 	private void writeException(final TProtocol out, final TMessage msg, final WriterHandler onComplete,
 			final TApplicationException x, TBase args) {
 		Throwable cause = null;
