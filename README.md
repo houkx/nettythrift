@@ -8,7 +8,7 @@ zh-CN:
   一个 netty 服务端框架, 基于 thrift协议.
   你可以通过chrome浏览器发送thrift json 协议的Http-GET 请求, 同时也可以使用thrift原生的的客户端发送压缩协议的数据.
   
-  #h1 项目经过了线上高并发的考验.
+  # 项目经过了线上高并发的考验.
 
 # Server Example
 
@@ -42,6 +42,7 @@ zh-CN:
 # The Client
   zh-CN:
   你可以使用thrift原生客户端, 也可以使用这里的 client.* 项目,客户端项目主要适用于像app端这种追求依赖库尽可能小的场景.
+  
   en:
   you can use the orig thrift client, or this client.* project,  the clients is used in android App
   Client Example:
